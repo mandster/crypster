@@ -1,2 +1,0 @@
-# crypster
-About crypto ;D
