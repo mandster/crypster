@@ -5,13 +5,11 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabaseClient';
 import Link from 'next/link';
-import { useAuthAndTheme } from '@/context/AuthAndThemeProvider';
+import { useAuthAndTheme } from '@/context/AuthAndThemeProvider'; // Import useAuthAndTheme hook
 
-// Removed interface ApiKeysPageProps as props are no longer passed directly
-
-const ApiKeysPage: React.FC = () => { // Changed from React.FC<ApiKeysPageProps>
+const ApiKeysPage: React.FC = () => { // No longer accepts props
   const router = useRouter();
-  const { session, isAuthLoading, theme } = useAuthAndTheme();
+  const { session, isAuthLoading, theme } = useAuthAndTheme(); // Consume context
   const [apiKey, setApiKey] = useState('');
   const [secretKey, setSecretKey] = useState('');
   const [loadingAction, setLoadingAction] = useState(false);
@@ -19,9 +17,10 @@ const ApiKeysPage: React.FC = () => { // Changed from React.FC<ApiKeysPageProps>
   const [isError, setIsError] = useState(false);
   const [storedApiKey, setStoredApiKey] = useState<string | null>(null);
 
+  // Fetch existing API keys on mount if authenticated
   useEffect(() => {
     const fetchKeys = async () => {
-      if (!isAuthLoading && session) {
+      if (!isAuthLoading && session) { // Only fetch if auth is loaded and session exists
         setLoadingAction(true);
         setMessage('');
         setIsError(false);
@@ -51,7 +50,7 @@ const ApiKeysPage: React.FC = () => { // Changed from React.FC<ApiKeysPageProps>
       }
     };
     fetchKeys();
-  }, [isAuthLoading, session]);
+  }, [isAuthLoading, session]); // Dependencies use context values
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,25 +106,28 @@ const ApiKeysPage: React.FC = () => { // Changed from React.FC<ApiKeysPageProps>
     }
   };
 
-  const panelBgClass = 'bg-white dark:bg-gray-800';
-  const borderColorClass = 'border-gray-300 dark:border-gray-700';
-  const inputBgClass = 'bg-gray-100 dark:bg-gray-700';
-  const buttonBg = 'bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700';
+  // Tailwind classes based on theme from context
+  const bgColor = theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50';
+  const textColor = theme === 'dark' ? 'text-gray-100' : 'text-gray-900';
+  const panelBg = theme === 'dark' ? 'bg-gray-800' : 'bg-white';
+  const borderColor = theme === 'dark' ? 'border-gray-700' : 'border-gray-300';
+  const inputBg = theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100';
+  const buttonBg = theme === 'dark' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600';
 
 
-  if (isAuthLoading || !session) {
+  if (isAuthLoading || !session) { // Rely on context for auth loading and session
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className={`min-h-screen flex items-center justify-center ${bgColor} ${textColor}`}>
         <p>Loading session...</p>
       </div>
     );
   }
 
   return (
-    <div className={`p-4 sm:p-6 md:p-8 flex flex-col items-center`}>
-      <div className={`${panelBgClass} p-8 rounded-xl shadow-lg border ${borderColorClass} w-full max-w-lg`}>
-        <h2 className="text-3xl font-bold mb-6 text-center text-gray-900 dark:text-gray-100">Manage Your MEXC API Keys</h2>
-        <p className="text-center text-sm mb-4 text-gray-600 dark:text-gray-400">
+    <div className={`min-h-screen flex items-center justify-center ${bgColor} ${textColor} transition-colors duration-300 p-4`}>
+      <div className={`${panelBg} p-8 rounded-xl shadow-lg border ${borderColor} w-full max-w-lg`}>
+        <h2 className="text-3xl font-bold mb-6 text-center">Manage Your MEXC API Keys</h2>
+        <p className="text-center text-sm mb-4">
           Securely store your API keys for automated trading features.
           Your secret key is encrypted and never exposed on the frontend.
         </p>
@@ -139,7 +141,7 @@ const ApiKeysPage: React.FC = () => { // Changed from React.FC<ApiKeysPageProps>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="apiKey" className="block text-sm font-medium mb-1 text-gray-900 dark:text-gray-100">
+            <label htmlFor="apiKey" className="block text-sm font-medium mb-1">
               MEXC API Key
             </label>
             <input
@@ -148,12 +150,12 @@ const ApiKeysPage: React.FC = () => { // Changed from React.FC<ApiKeysPageProps>
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               required
-              className={`w-full p-3 rounded-lg ${inputBgClass} text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              className={`w-full p-3 rounded-lg ${inputBg} ${textColor} border ${borderColor} focus:outline-none focus:ring-2 focus:ring-blue-500`}
               placeholder="Paste your MEXC API Key here"
             />
           </div>
           <div>
-            <label htmlFor="secretKey" className="block text-sm font-medium mb-1 text-gray-900 dark:text-gray-100">
+            <label htmlFor="secretKey" className="block text-sm font-medium mb-1">
               MEXC Secret Key
             </label>
             <input
@@ -162,7 +164,7 @@ const ApiKeysPage: React.FC = () => { // Changed from React.FC<ApiKeysPageProps>
               value={secretKey}
               onChange={(e) => setSecretKey(e.target.value)}
               required
-              className={`w-full p-3 rounded-lg ${inputBgClass} text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              className={`w-full p-3 rounded-lg ${inputBg} ${textColor} border ${borderColor} focus:outline-none focus:ring-2 focus:ring-blue-500`}
               placeholder="Paste your MEXC Secret Key here"
             />
           </div>

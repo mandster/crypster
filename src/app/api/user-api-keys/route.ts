@@ -1,7 +1,7 @@
 // src/app/api/user-api-keys/route.ts
 import { NextResponse } from 'next/server';
 import { supabase } from '@/utils/supabaseClient';
-import { encrypt, decrypt } from '@/utils/encryption'; // This import needs `decrypt` to be exported!
+import { encrypt } from '@/utils/encryption'; // Import the encryption utility
 
 /**
  * Handles POST requests to store encrypted user API keys in Supabase.
@@ -9,6 +9,7 @@ import { encrypt, decrypt } from '@/utils/encryption'; // This import needs `dec
  */
 export async function POST(request: Request) {
   try {
+    // 1. Get the authenticated user's session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
     if (sessionError || !session) {
@@ -22,9 +23,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing API key, secret key, or exchange' }, { status: 400 });
     }
 
+    // 2. Encrypt the API Key and Secret Key
     const encryptedApiKey = encrypt(apiKey);
     const encryptedSecretKey = encrypt(secretKey);
 
+    // 3. Store the encrypted keys (and their IVs) in Supabase
+    // We'll update an existing entry if it exists for the user/exchange, otherwise insert
     const { data, error } = await supabase
       .from('user_api_keys')
       .upsert(
@@ -32,16 +36,16 @@ export async function POST(request: Request) {
           user_id: session.user.id,
           exchange: exchange,
           encrypted_api_key: encryptedApiKey.encryptedData,
-          api_key_iv: encryptedApiKey.iv,
+          api_key_iv: encryptedApiKey.iv, // Store IV to decrypt later
           encrypted_secret_key: encryptedSecretKey.encryptedData,
-          secret_key_iv: encryptedSecretKey.iv,
+          secret_key_iv: encryptedSecretKey.iv, // Store IV to decrypt later
         },
         {
-          onConflict: 'user_id, exchange',
+          onConflict: 'user_id, exchange', // Update if user_id and exchange already exist
           ignoreDuplicates: false
         }
       )
-      .select();
+      .select(); // Select the data after upsert to confirm
 
     if (error) {
       console.error('Supabase error storing API keys:', error);
@@ -62,6 +66,8 @@ export async function POST(request: Request) {
 /**
  * Handles GET requests to retrieve encrypted user API keys from Supabase.
  * This route requires authentication.
+ * In a real scenario, you'd decrypt these keys only on the *trading bot* server,
+ * not send them decrypted to the frontend. This GET is for demonstration.
  */
 export async function GET(request: Request) {
   try {
@@ -76,7 +82,7 @@ export async function GET(request: Request) {
       .from('user_api_keys')
       .select('encrypted_api_key, api_key_iv, encrypted_secret_key, secret_key_iv, exchange')
       .eq('user_id', session.user.id)
-      .limit(1);
+      .limit(1); // Assuming one key per user per exchange for now
 
     if (error) {
       console.error('Supabase error retrieving API keys:', error);
@@ -87,13 +93,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'No API keys found for this user.' }, { status: 404 });
     }
 
+    // In a real automated trading setup, the decryption would happen on the backend trading bot.
+    // We are doing it here only for the purpose of demonstrating the values.
+    // NEVER send decrypted secret keys to the frontend in a production application!
+    // For this example, we'll decrypt both for display/testing purposes.
     const decryptedApiKey = decrypt(data[0].encrypted_api_key, data[0].api_key_iv);
     const decryptedSecretKey = decrypt(data[0].encrypted_secret_key, data[0].secret_key_iv);
 
     return NextResponse.json({
       exchange: data[0].exchange,
       apiKey: decryptedApiKey,
-      secretKey: decryptedSecretKey,
+      secretKey: decryptedSecretKey, // DANGER: Do NOT send to frontend in production
       message: "Decrypted keys sent. WARNING: Decrypting and sending secretKey to frontend is INSECURE for production apps."
     }, { status: 200 });
 

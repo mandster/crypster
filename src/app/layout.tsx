@@ -1,24 +1,38 @@
 // src/app/layout.tsx
 'use client'; // This is a client component to use the context provider
+// src/app/layout.tsx
+'use client'; // This is a client component to use the context provider
 
 import React, { ReactNode } from 'react';
 import './globals.css';
-import { AuthAndThemeProvider, useAuthAndTheme } from '@/context/AuthAndThemeProvider';
-import Navbar from '@/components/ui/Navbar';
+import { AuthAndThemeProvider, useAuthAndTheme } from '@/context/AuthAndThemeProvider'; // Import the provider and hook
+import Navbar from '@/components/ui/Navbar'; // Navbar will consume context directly
 
 
+// RootLayout component defines the overall HTML structure
 // RootLayout component defines the overall HTML structure
 export default function RootLayout({
   children,
 }: {
+}: {
   children: React.ReactNode;
+}) {
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        {/* Wrap the entire application content with the AuthAndThemeProvider */}
+        {/*
+          Wrap the entire application content (Navbar + children pages)
+          with the AuthAndThemeProvider.
+          This ensures that any component within the AuthAndThemeProvider's tree
+          can use the useAuthAndTheme hook.
+        */}
         <AuthAndThemeProvider>
-          {/* AuthContentWrapper ensures Navbar and children are within the context */}
+          {/*
+            AuthContentWrapper is a helper component needed because Navbar itself
+            also needs to consume the context. If Navbar were outside AuthAndThemeProvider,
+            it would throw the same error.
+          */}
           <AuthContentWrapper>
             {children}
           </AuthContentWrapper>
@@ -30,34 +44,31 @@ export default function RootLayout({
 
 /**
  * Helper component to render Navbar and children, consuming the AuthAndThemeContext.
- * This component will manage the display of a loading screen for the main content
- * until the authentication state is resolved.
+ * This is nested inside AuthAndThemeProvider in RootLayout.
+ * It also applies the base background and text colors for the entire content area.
  */
 function AuthContentWrapper({ children }: { children: React.ReactNode }) {
-  const { session, isAuthLoading, toggleTheme, theme: currentTheme } = useAuthAndTheme(); // Still get context values here for main content styling if needed
+  // Consume the context values needed by Navbar and potentially for styling the main content area
+  const { session, isAuthLoading, toggleTheme, theme: currentTheme } = useAuthAndTheme();
 
-  // Base background and text colors for the entire content area, using Tailwind's dark variants
-  const baseBgClass = 'bg-gray-50 dark:bg-gray-900';
-  const baseTextColorClass = 'text-gray-900 dark:text-gray-100';
+  // Determine background and text color based on the current theme
+  const bgColor = currentTheme === 'dark' ? 'bg-gray-900' : 'bg-gray-50';
+  const textColor = currentTheme === 'dark' ? 'text-gray-100' : 'text-gray-900';
 
   return (
     <>
       <Navbar
-        // IMPORTANT: Removed explicit prop passing.
-        // Navbar should now get session, isAuthLoading, toggleTheme, currentTheme
-        // directly from `useAuthAndTheme()` hook within its own component.
+        // Navbar now receives props from AuthContentWrapper, which got them from context.
+        // This is optional; Navbar could also use `useAuthAndTheme()` internally.
+        // For clarity and to demonstrate passing, we'll keep it this way here.
+        session={session}
+        isAuthLoading={isAuthLoading}
+        toggleTheme={toggleTheme}
+        currentTheme={currentTheme}
       />
-      <main className={`min-h-[calc(100vh-64px)] ${baseBgClass} ${baseTextColorClass} font-inter transition-colors duration-300`}>
-        {/* Conditional rendering of children based on auth loading state */}
-        {isAuthLoading ? (
-          // Show a full-screen loading indicator while authentication state is resolving
-          <div className="flex justify-center items-center h-full min-h-[calc(100vh-64px)]">
-            <p className="text-xl">Initializing application...</p>
-          </div>
-        ) : (
-          // Once authentication loading is complete, render the actual page content
-          children
-        )}
+      {/* Apply base theme classes to the main content wrapper */}
+      <main className={`min-h-screen ${bgColor} ${textColor} font-inter transition-colors duration-300`}>
+        {children}
       </main>
     </>
   );

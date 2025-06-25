@@ -5,25 +5,26 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/utils/supabaseClient';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuthAndTheme } from '@/context/AuthAndThemeProvider';
+import { useAuthAndTheme } from '@/context/AuthAndThemeProvider'; // Import useAuthAndTheme hook
 
-// Removed interface UpdatePasswordPageProps as props are no longer passed directly
-
-const UpdatePasswordPage: React.FC = () => { // Changed from React.FC<UpdatePasswordPageProps>
+const UpdatePasswordPage: React.FC = () => { // No longer accepts props
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loadingAction, setLoadingAction] = useState(false);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
   const router = useRouter();
-  const { session, isAuthLoading, theme } = useAuthAndTheme();
+  const { session, isAuthLoading, theme } = useAuthAndTheme(); // Consume context
 
+  // Basic check for session to ensure user is in a valid state to update password
   useEffect(() => {
-    // This effect ensures that if a user directly navigates here without a session (e.g., not from a reset email link)
-    // they get a message. The primary redirect logic is in AuthAndThemeProvider.
+    // This page specifically relies on a session being present from a password reset email link
+    // or a recent re-authentication. The context `session` helps confirm overall login status.
     if (!isAuthLoading && !session) {
-      setMessage("Please use the password reset link from your email or log in first.");
+      setMessage("Please use the password reset link from your email.");
       setIsError(true);
+      // Optionally redirect after a delay if no valid session is found
+      // setTimeout(() => router.push('/auth/login'), 3000);
     }
   }, [session, isAuthLoading]);
 
@@ -42,6 +43,7 @@ const UpdatePasswordPage: React.FC = () => { // Changed from React.FC<UpdatePass
     }
 
     try {
+      // This function works only if the user is currently authenticated via the password reset flow
       const { error } = await supabase.auth.updateUser({ password });
 
       if (error) throw error;
@@ -49,7 +51,7 @@ const UpdatePasswordPage: React.FC = () => { // Changed from React.FC<UpdatePass
       setMessage('Your password has been updated successfully! Redirecting to login...');
       setTimeout(() => {
         router.push('/auth/login');
-      }, 3000);
+      }, 3000); // Redirect to login after successful update
     } catch (error: any) {
       setIsError(true);
       setMessage(`Error updating password: ${error.message}`);
@@ -59,27 +61,30 @@ const UpdatePasswordPage: React.FC = () => { // Changed from React.FC<UpdatePass
     }
   };
 
-  const panelBgClass = 'bg-white dark:bg-gray-800';
-  const borderColorClass = 'border-gray-300 dark:border-gray-700';
-  const inputBgClass = 'bg-gray-100 dark:bg-gray-700';
-  const buttonBg = 'bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700';
+  // Tailwind classes based on theme from context
+  const bgColor = theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50';
+  const textColor = theme === 'dark' ? 'text-gray-100' : 'text-gray-900';
+  const panelBg = theme === 'dark' ? 'bg-gray-800' : 'bg-white';
+  const borderColor = theme === 'dark' ? 'border-gray-700' : 'border-gray-300';
+  const inputBg = theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100';
+  const buttonBg = theme === 'dark' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600';
 
-  // Show a loading state if authentication is still in progress
+  // If auth is loading, render a loading state
   if (isAuthLoading) {
     return (
-        <div className={`min-h-screen flex items-center justify-center p-4`}>
-            <p className="text-xl">Loading authentication state...</p>
-        </div>
+      <div className={`min-h-screen flex items-center justify-center ${bgColor} ${textColor}`}>
+        <p>Loading page...</p>
+      </div>
     );
   }
 
-  // If not loading and no session, display a message and link to login
+  // If auth loading is complete and no session, we show error message or redirect (handled by useEffect)
   if (!session) {
     return (
-      <div className={`min-h-screen flex items-center justify-center p-4`}>
-        <div className={`${panelBgClass} p-8 rounded-xl shadow-lg border ${borderColorClass} w-full max-w-md text-center`}>
+      <div className={`min-h-screen flex items-center justify-center ${bgColor} ${textColor} transition-colors duration-300 p-4`}>
+        <div className={`${panelBg} p-8 rounded-xl shadow-lg border ${borderColor} w-full max-w-md text-center`}>
           <h2 className="text-2xl font-bold mb-4 text-red-500">Authentication Required</h2>
-          <p className="mb-6 text-gray-900 dark:text-gray-100">Please log in to update your password, or use the link from your password reset email.</p>
+          <p className="mb-6">Please log in to update your password, or use the link from your password reset email.</p>
           <Link href="/auth/login" className={`${buttonBg} text-white font-bold py-3 px-6 rounded-lg shadow-md text-center inline-block`}>
             Go to Login
           </Link>
@@ -88,15 +93,14 @@ const UpdatePasswordPage: React.FC = () => { // Changed from React.FC<UpdatePass
     );
   }
 
-  // If loading is complete and session exists, render the update password form
   return (
-    <div className={`min-h-screen flex items-center justify-center p-4`}>
-      <div className={`${panelBgClass} p-8 rounded-xl shadow-lg border ${borderColorClass} w-full max-w-md`}>
-        <h2 className="text-3xl font-bold mb-6 text-center text-gray-900 dark:text-gray-100">Update Password</h2>
+    <div className={`min-h-screen flex items-center justify-center ${bgColor} ${textColor} transition-colors duration-300 p-4`}>
+      <div className={`${panelBg} p-8 rounded-xl shadow-lg border ${borderColor} w-full max-w-md`}>
+        <h2 className="text-3xl font-bold mb-6 text-center">Update Password</h2>
 
         <form onSubmit={handlePasswordUpdate} className="space-y-4">
           <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1 text-gray-900 dark:text-gray-100">
+            <label htmlFor="password" className="block text-sm font-medium mb-1">
               New Password
             </label>
             <input
@@ -105,12 +109,12 @@ const UpdatePasswordPage: React.FC = () => { // Changed from React.FC<UpdatePass
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className={`w-full p-3 rounded-lg ${inputBgClass} text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              className={`w-full p-3 rounded-lg ${inputBg} ${textColor} border ${borderColor} focus:outline-none focus:ring-2 focus:ring-blue-500`}
               placeholder="Enter new password"
             />
           </div>
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium mb-1 text-gray-900 dark:text-gray-100">
+            <label htmlFor="confirmPassword" className="block text-sm font-medium mb-1">
               Confirm New Password
             </label>
             <input
@@ -119,7 +123,7 @@ const UpdatePasswordPage: React.FC = () => { // Changed from React.FC<UpdatePass
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              className={`w-full p-3 rounded-lg ${inputBgClass} text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              className={`w-full p-3 rounded-lg ${inputBg} ${textColor} border ${borderColor} focus:outline-none focus:ring-2 focus:ring-blue-500`}
               placeholder="Confirm new password"
             />
           </div>
@@ -140,7 +144,7 @@ const UpdatePasswordPage: React.FC = () => { // Changed from React.FC<UpdatePass
           </button>
         </form>
 
-        <p className="text-center text-sm mt-6 text-gray-900 dark:text-gray-100">
+        <p className="text-center text-sm mt-6">
           <Link href="/auth/login" className="text-blue-500 hover:underline">
             Back to Login
           </Link>

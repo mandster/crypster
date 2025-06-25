@@ -7,31 +7,32 @@ import { supabase } from '@/utils/supabaseClient';
 import Link from 'next/link';
 import { useAuthAndTheme } from '@/context/AuthAndThemeProvider';
 
-// Removed interface AccountPageProps as props are no longer passed directly
-
-const AccountPage: React.FC = () => { // Changed from React.FC<AccountPageProps>
+const AccountPage: React.FC = () => {
   const router = useRouter();
-  const { session, isAuthLoading, theme } = useAuthAndTheme(); // Consume context
+  // Consume context for session and auth loading
+  const { session, isAuthLoading, theme } = useAuthAndTheme();
 
+  // Local states for page-specific actions/UI
   const [loadingAction, setLoadingAction] = useState(false);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
 
-  // Debugging logs for AccountPage - Keep these for now to observe behavior
-  // This useEffect is to explicitly log the state from context; the primary loading/redirect
-  // is handled by AuthContentWrapper in layout.tsx.
+  // --- DEBUGGING LOGS ---
   useEffect(() => {
     console.log('AccountPage Mount/Update - isAuthLoading:', isAuthLoading, 'Session:', session);
     if (isAuthLoading) {
       console.log('AccountPage: Still authenticating...');
     } else if (!session) {
       console.log('AccountPage: Authentication complete, NO session. Redirecting to login (handled by layout)...');
+      // No explicit router.push here, relying on AuthAndThemeProvider's redirect logic
     } else {
       console.log('AccountPage: Authentication complete, session EXISTS. User Email:', session.user?.email);
     }
   }, [isAuthLoading, session]);
+  // --- END DEBUGGING LOGS ---
 
 
+  // Handle password reset request
   const handlePasswordReset = async () => {
     if (!session?.user?.email) {
       setMessage('Error: User email not found for password reset.');
@@ -60,6 +61,7 @@ const AccountPage: React.FC = () => { // Changed from React.FC<AccountPageProps>
     }
   };
 
+  // Tailwind classes based on theme from context
   const panelBgClass = 'bg-white dark:bg-gray-800';
   const borderColorClass = 'border-gray-300 dark:border-gray-700';
   const buttonBg = 'bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700';
@@ -74,6 +76,7 @@ const AccountPage: React.FC = () => { // Changed from React.FC<AccountPageProps>
     );
   }
 
+  // If we reach here, it means isAuthLoading is false AND session is not null
   console.log('AccountPage: Rendering actual content...');
   return (
     <div className={`p-4 sm:p-6 md:p-8 flex flex-col items-center`}>
@@ -90,15 +93,15 @@ const AccountPage: React.FC = () => { // Changed from React.FC<AccountPageProps>
         <div className={`space-y-4 text-left mx-auto max-w-sm mb-8 text-gray-900 dark:text-gray-100`}>
           <div className="flex justify-between items-center bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg">
             <span className="font-medium">Email:</span>
-            <span className="break-all">{session?.user?.email || 'N/A'}</span>
+            <span className="break-all">{session.user?.email || 'N/A'}</span>
           </div>
           <div className="flex justify-between items-center bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg">
             <span className="font-medium">User ID:</span>
-            <span className="text-sm break-all">{session?.user?.id || 'N/A'}</span>
+            <span className="text-sm break-all">{session.user?.id || 'N/A'}</span>
           </div>
           <div className="flex justify-between items-center bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg">
             <span className="font-medium">Last Sign In:</span>
-            <span>{session?.user?.last_sign_in_at ? new Date(session.user.last_sign_in_at).toLocaleString() : 'N/A'}</span>
+            <span>{new Date(session.user?.last_sign_in_at).toLocaleString() || 'N/A'}</span>
           </div>
         </div>
 

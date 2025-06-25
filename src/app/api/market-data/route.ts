@@ -1,116 +1,108 @@
-// src/app/api/user-api-keys/route.ts
+// src/app/api/market-data/route.ts
 import { NextResponse } from 'next/server';
-import { supabase } from '@/utils/supabaseClient';
-import { encrypt, decrypt } from '@/utils/encryption'; // Import both encrypt and decrypt
+import ccxt from 'ccxt';
+
+// Default symbol if none is provided
+const DEFAULT_SYMBOL = 'BTC/USDT';
+
+// Set a revalidate value of 0 to disable caching for this route.
+export const revalidate = 0;
 
 /**
- * Handles POST requests to store encrypted user API keys in Supabase.
- * This route requires authentication.
+ * Function to generate dummy candlestick data for demonstration.
+ * Adapted for backend use.
  */
-export async function POST(request: Request) {
-  try {
-    // 1. Get the authenticated user's session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+const generateDummyCandlestickData = (symbol: string = DEFAULT_SYMBOL, count: number = 50) => {
+  const data = [];
+  let lastClose = (symbol === 'BTC/USDT') ? 60000 : (symbol === 'ETH/USDT' ? 3000 : (symbol === 'XRP/USDT' ? 0.5 : 100)); // Base price for dummy data
+  
+  for (let i = 0; i < count; i++) {
+    // Small random fluctuation around the last close
+    const fluctuation = (Math.random() - 0.5) * (lastClose * 0.005); // +/- 0.5% fluctuation
+    const open = lastClose + fluctuation;
+    const high = open + Math.random() * (lastClose * 0.002);
+    const low = open - Math.random() * (lastClose * 0.002);
+    const close = low + Math.random() * (high - low);
+    
+    lastClose = close; // Update lastClose for the next candle
 
-    if (sessionError || !session) {
-      console.error('Authentication error:', sessionError?.message || 'No active session');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const timestamp = Date.now() - (count - 1 - i) * 60 * 1000; // 1-minute intervals
+    data.push({
+      time: new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      open,
+      high,
+      low,
+      close,
+      volume: Math.floor(Math.random() * 1000000) + 100000,
+    });
+  }
+  return data;
+};
 
-    const { apiKey, secretKey, exchange } = await request.json();
+// Initialize MEXC exchange client (only if not using mock data)
+const mexc = process.env.USE_MOCK_DATA !== 'true' ? new ccxt.mexc({
+  apiKey: process.env.MEXC_API_KEY,
+  secret: process.env.MEXC_SECRET_KEY,
+  timeout: 15000,
+  options: {
+    recvWindow: 30000,
+  },
+}) : null; // Initialize only if not using mock data
 
-    if (!apiKey || !secretKey || !exchange) {
-      return NextResponse.json({ error: 'Missing API key, secret key, or exchange' }, { status: 400 });
-    }
+/**
+ * Handles GET requests to fetch market data (current price and candlestick data).
+ * Accepts 'symbol' as a query parameter.
+ */
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const symbol = searchParams.get('symbol') || DEFAULT_SYMBOL;
 
-    // 2. Encrypt the API Key and Secret Key
-    const encryptedApiKey = encrypt(apiKey);
-    const encryptedSecretKey = encrypt(secretKey);
+  // Check if mock data should be used
+  const useMockData = process.env.USE_MOCK_DATA === 'true';
 
-    // 3. Store the encrypted keys (and their IVs) in Supabase
-    // We'll update an existing entry if it exists for the user/exchange, otherwise insert
-    const { data, error } = await supabase
-      .from('user_api_keys')
-      .upsert(
-        {
-          user_id: session.user.id,
-          exchange: exchange,
-          encrypted_api_key: encryptedApiKey.encryptedData,
-          api_key_iv: encryptedApiKey.iv, // Store IV to decrypt later
-          encrypted_secret_key: encryptedSecretKey.encryptedData,
-          secret_key_iv: encryptedSecretKey.iv, // Store IV to decrypt later
-        },
-        {
-          onConflict: 'user_id, exchange', // Update if user_id and exchange already exist
-          ignoreDuplicates: false
-        }
-      )
-      .select(); // Select the data after upsert to confirm
+  if (useMockData) {
+    console.log(`[Market Data API] Serving MOCK data for ${symbol}`);
+    const mockCandlestickData = generateDummyCandlestickData(symbol, 50);
+    const mockCurrentPrice = mockCandlestickData[mockCandlestickData.length - 1].close;
 
-    if (error) {
-      console.error('Supabase error storing API keys:', error);
-      return NextResponse.json({ error: 'Failed to store API keys', details: error.message }, { status: 500 });
-    }
+    return NextResponse.json({
+      currentPrice: mockCurrentPrice,
+      candlestickData: mockCandlestickData,
+      symbol: symbol,
+    });
+  }
 
-    return NextResponse.json({ message: 'API keys stored successfully', data: data[0] }, { status: 200 });
-
-  } catch (error) {
-    console.error('Error in API key storage route:', error);
+  // --- Live Data Fetching (only if not using mock data) ---
+  if (!mexc) {
+    // This case should ideally not happen if mexc is initialized conditionally
     return NextResponse.json(
-      { error: 'Internal server error', details: (error as Error).message },
+      { error: "MEXC exchange client not initialized for live data." },
       { status: 500 }
     );
   }
-}
 
-/**
- * Handles GET requests to retrieve encrypted user API keys from Supabase.
- * This route requires authentication.
- * In a real scenario, you'd decrypt these keys only on the *trading bot* server,
- * not send them decrypted to the frontend. This GET is for demonstration.
- */
-export async function GET(request: Request) {
   try {
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    const ticker = await mexc.fetchTicker(symbol);
+    const ohlcv = await mexc.fetchOHLCV(symbol, '1m', undefined, 50);
 
-    if (sessionError || !session) {
-      console.error('Authentication error:', sessionError?.message || 'No active session');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data, error } = await supabase
-      .from('user_api_keys')
-      .select('encrypted_api_key, api_key_iv, encrypted_secret_key, secret_key_iv, exchange')
-      .eq('user_id', session.user.id)
-      .limit(1); // Assuming one key per user per exchange for now
-
-    if (error) {
-      console.error('Supabase error retrieving API keys:', error);
-      return NextResponse.json({ error: 'Failed to retrieve API keys', details: error.message }, { status: 500 });
-    }
-
-    if (!data || data.length === 0) {
-      return NextResponse.json({ error: 'No API keys found for this user.' }, { status: 404 });
-    }
-
-    // In a real automated trading setup, the decryption would happen on the backend trading bot.
-    // We are doing it here only for the purpose of demonstrating the values.
-    // NEVER send decrypted secret keys to the frontend in a production application!
-    // For this example, we'll decrypt both for display/testing purposes.
-    const decryptedApiKey = decrypt(data[0].encrypted_api_key, data[0].api_key_iv);
-    const decryptedSecretKey = decrypt(data[0].encrypted_secret_key, data[0].secret_key_iv);
+    const candlestickData = ohlcv.map((candle: number[]) => ({
+      time: new Date(candle[0]).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      open: candle[1],
+      high: candle[2],
+      low: candle[3],
+      close: candle[4],
+      volume: candle[5],
+    }));
 
     return NextResponse.json({
-      exchange: data[0].exchange,
-      apiKey: decryptedApiKey,
-      secretKey: decryptedSecretKey, // DANGER: Do NOT send to frontend in production
-      message: "Decrypted keys sent. WARNING: Decrypting and sending secretKey to frontend is INSECURE for production apps."
-    }, { status: 200 });
-
+      currentPrice: ticker.last,
+      candlestickData: candlestickData,
+      symbol: symbol,
+    });
   } catch (error) {
-    console.error('Error in API key retrieval route:', error);
+    console.error(`Error fetching market data for ${symbol} from MEXC:`, error);
     return NextResponse.json(
-      { error: 'Internal server error', details: (error as Error).message },
+      { error: `Failed to fetch market data for ${symbol}`, details: (error as Error).message },
       { status: 500 }
     );
   }

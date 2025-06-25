@@ -4,7 +4,7 @@
 import React from 'react';
 
 interface RiskManagementProps {
-  theme: string; // Keep theme prop if needed for very specific overrides not handled by dark:
+  theme: string;
   capital: number;
   setCapital: (capital: number) => void;
   riskPerTradePct: number;
@@ -17,11 +17,14 @@ interface RiskManagementProps {
   stopLossPrice: number;
   takeProfitPrice: number;
   positionSize: number;
-  // Removed: panelBg, borderColor, inputBg, textColor props
+  panelBg: string;
+  borderColor: string;
+  inputBg: string;
+  textColor: string;
 }
 
 const RiskManagement: React.FC<RiskManagementProps> = ({
-  theme, // Keep theme if needed for specific text colors or other elements not covered by dark:
+  theme,
   capital,
   setCapital,
   riskPerTradePct,
@@ -34,18 +37,17 @@ const RiskManagement: React.FC<RiskManagementProps> = ({
   stopLossPrice,
   takeProfitPrice,
   positionSize,
+  panelBg,
+  borderColor,
+  inputBg,
+  textColor,
 }) => {
-  // Common input/panel styling classes using dark: variants
-  const panelClasses = `bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 flex flex-col`;
-  const inputClasses = `w-full p-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500`;
-
-
   return (
-    <div className={panelClasses}>
-      <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Risk Management</h2>
+    <div className={`${panelBg} p-4 rounded-xl shadow-lg border ${borderColor} flex flex-col`}>
+      <h2 className="text-xl sm:text-2xl font-semibold mb-4">Risk Management</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div>
-          <label htmlFor="capital" className="block text-sm font-medium mb-1 text-gray-900 dark:text-gray-100">
+          <label htmlFor="capital" className="block text-sm font-medium mb-1">
             Simulated Capital ($)
           </label>
           <input
@@ -53,11 +55,11 @@ const RiskManagement: React.FC<RiskManagementProps> = ({
             id="capital"
             value={capital}
             onChange={(e) => setCapital(parseFloat(e.target.value) || 0)}
-            className={inputClasses}
+            className={`w-full p-3 rounded-lg ${inputBg} ${textColor} border ${borderColor} focus:outline-none focus:ring-2 focus:ring-blue-500`}
           />
         </div>
         <div>
-          <label htmlFor="riskPct" className="block text-sm font-medium mb-1 text-gray-900 dark:text-gray-100">
+          <label htmlFor="riskPct" className="block text-sm font-medium mb-1">
             Risk per Trade (%)
           </label>
           <input
@@ -65,11 +67,11 @@ const RiskManagement: React.FC<RiskManagementProps> = ({
             id="riskPct"
             value={riskPerTradePct}
             onChange={(e) => setRiskPerTradePct(parseFloat(e.target.value) || 0)}
-            className={inputClasses}
+            className={`w-full p-3 rounded-lg ${inputBg} ${textColor} border ${borderColor} focus:outline-none focus:ring-2 focus:ring-blue-500`}
           />
         </div>
         <div>
-          <label htmlFor="stopLossPct" className="block text-sm font-medium mb-1 text-gray-900 dark:text-gray-100">
+          <label htmlFor="stopLossPct" className="block text-sm font-medium mb-1">
             Stop Loss (%)
           </label>
           <input
@@ -77,11 +79,11 @@ const RiskManagement: React.FC<RiskManagementProps> = ({
             id="stopLossPct"
             value={stopLossPct}
             onChange={(e) => setStopLossPct(parseFloat(e.target.value) || 0)}
-            className={inputClasses}
+            className={`w-full p-3 rounded-lg ${inputBg} ${textColor} border ${borderColor} focus:outline-none focus:ring-2 focus:ring-blue-500`}
           />
         </div>
         <div>
-          <label htmlFor="takeProfitPct" className="block text-sm font-medium mb-1 text-gray-900 dark:text-gray-100">
+          <label htmlFor="takeProfitPct" className="block text-sm font-medium mb-1">
             Take Profit (%)
           </label>
           <input
@@ -89,12 +91,12 @@ const RiskManagement: React.FC<RiskManagementProps> = ({
             id="takeProfitPct"
             value={takeProfitPct}
             onChange={(e) => setTakeProfitPct(parseFloat(e.target.value) || 0)}
-            className={inputClasses}
+            className={`w-full p-3 rounded-lg ${inputBg} ${textColor} border ${borderColor} focus:outline-none focus:ring-2 focus:ring-blue-500`}
           />
         </div>
       </div>
 
-      <div className="space-y-3 mt-auto text-gray-900 dark:text-gray-100"> {/* Default text color for labels */}
+      <div className="space-y-3 mt-auto">
         <p className="flex justify-between">
           <span className="font-medium">Risk Amount:</span>
           <span className="font-semibold text-red-400">${riskAmount.toFixed(2)}</span>
