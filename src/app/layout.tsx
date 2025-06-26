@@ -4,7 +4,7 @@
 import React, { ReactNode } from 'react';
 import './globals.css';
 import { AuthAndThemeProvider, useAuthAndTheme } from '@/context/AuthAndThemeProvider';
-import Navbar from '@/components/Navbar';
+import Navbar from '@/components/ui/Navbar';
 
 
 // RootLayout component defines the overall HTML structure
