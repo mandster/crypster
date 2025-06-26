@@ -1,21 +1,16 @@
-// src/components/Navbar.tsx
 'use client';
 
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabaseClient';
-import { useAuthAndTheme } from '@/context/AuthAndThemeProvider'; // Import useAuthAndTheme hook
+import { useAuthAndTheme } from '@/context/AuthAndThemeProvider'; // This is crucial
 
-/**
- * Navbar component for global navigation.
- * Dynamically displays links based on authentication status.
- * Includes theme toggle and user actions.
- */
-const Navbar: React.FC = () => { // No longer receives props directly, will use context
+
+const Navbar: React.FC = () => { // NO PROPS HERE. Remove any interface like 'NavbarProps'.
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { session, isAuthLoading, toggleTheme, theme: currentTheme } = useAuthAndTheme(); // Consume context
+  const { session, isAuthLoading, toggleTheme, theme: currentTheme } = useAuthAndTheme(); // <<-- Gets everything from context
 
   // Logout handler
   const handleLogout = async () => {
