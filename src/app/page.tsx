@@ -2,7 +2,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuthAndTheme } from '@/context/AuthAndThemeProvider';
+import { useAuthAndTheme } from '@/context/AuthAndThemeProvider'; // Import useAuthAndTheme hook
+
+// Import local components and utilities
 import { generateCandlestickData, CandlestickData } from '@/utils/dataGenerators';
 import ChartComponent from '@/components/Chart';
 import OrderPanel from '@/components/OrderPanel';
@@ -14,9 +16,9 @@ const HomePage: React.FC = () => {
 
   const [candlestickData, setCandlestickData] = useState<CandlestickData[]>([]);
   const [currentPrice, setCurrentPrice] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Market data loading
   const [error, setError] = useState<string | null>(null);
-  const [selectedSymbol, setSelectedSymbol] = useState<string>('BTC/USDT');
+  const [selectedSymbol, setSelectedSymbol] = useState<string>('BTC/USDT'); // State for selected symbol
 
   const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
   const [tradeAction, setTradeAction] = useState<'buy' | 'sell'>('buy');
@@ -33,6 +35,8 @@ const HomePage: React.FC = () => {
   const [positionSize, setPositionSize] = useState(0);
   const [tradeJournal, setTradeJournal] = useState<any[]>([]);
 
+
+  // Function to fetch market data from our API route for a given symbol
   const fetchMarketData = useCallback(async (symbol: string) => {
     setIsLoading(true);
     setError(null);
@@ -49,12 +53,14 @@ const HomePage: React.FC = () => {
       setError("Failed to load market data. Please try again later.");
       const dummyData = generateCandlestickData();
       setCandlestickData(dummyData);
-      setCurrentPrice(dummyData[dummyData.length - 1].close);
+      setCurrentPrice(dummyData[dummyData.length -1].close);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
+
+  // Data fetching interval: only run if auth is loaded AND session is present AND selectedSymbol changes
   useEffect(() => {
     if (!isAuthLoading && session) {
       fetchMarketData(selectedSymbol);
@@ -78,15 +84,26 @@ const HomePage: React.FC = () => {
     setRiskAmount(currentRiskAmount);
 
     if (currentPrice > 0) {
-      const directionMultiplier = tradeAction === 'buy' ? 1 : -1;
-      const calculatedStopLossPrice = currentPrice * (1 - directionMultiplier * stopLossPct / 100);
-      const calculatedTakeProfitPrice = currentPrice * (1 + directionMultiplier * takeProfitPct / 100);
-      setStopLossPrice(calculatedStopLossPrice);
-      setTakeProfitPrice(calculatedTakeProfitPrice);
-      if (stopLossPct > 0) {
-        setPositionSize(currentRiskAmount / (currentPrice * (stopLossPct / 100)));
+      if (tradeAction === 'buy') {
+        const calculatedStopLossPrice = currentPrice * (1 - stopLossPct / 100);
+        setStopLossPrice(calculatedStopLossPrice);
+        const calculatedTakeProfitPrice = currentPrice * (1 + takeProfitPct / 100);
+        setTakeProfitPrice(calculatedTakeProfitPrice);
+        if (stopLossPct > 0) {
+          setPositionSize(currentRiskAmount / (currentPrice * (stopLossPct / 100)));
+        } else {
+          setPositionSize(0);
+        }
       } else {
-        setPositionSize(0);
+        const calculatedStopLossPrice = currentPrice * (1 + stopLossPct / 100);
+        setStopLossPrice(calculatedStopLossPrice);
+        const calculatedTakeProfitPrice = currentPrice * (1 - takeProfitPct / 100);
+        setTakeProfitPrice(calculatedTakeProfitPrice);
+        if (stopLossPct > 0) {
+          setPositionSize(currentRiskAmount / (currentPrice * (stopLossPct / 100)));
+        } else {
+          setPositionSize(0);
+        }
       }
     }
   }, [capital, riskPerTradePct, stopLossPct, takeProfitPct, currentPrice, tradeAction]);
@@ -121,27 +138,20 @@ const HomePage: React.FC = () => {
   const buyButtonBg = 'bg-green-500 hover:bg-green-600';
   const sellButtonBg = 'bg-red-500 hover:bg-red-600';
 
-  if (isAuthLoading || !session) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <p>Initializing application...</p>
-      </div>
-    );
-  }
-
   return (
     <div className={`p-4 sm:p-6 md:p-8 flex flex-col items-center`}>
       <h1 className="text-3xl sm:text-4xl font-bold mb-6 text-center">Crypster Trading</h1>
 
-      <div className={`bg-white dark:bg-gray-800 p-2 sm:px-3 sm:py-2 rounded-lg shadow-sm border border-gray-300 dark:border-gray-700 mb-6 flex items-center justify-center max-w-[250px] sm:max-w-[300px]`}>
-        <label htmlFor="symbol-select" className="text-sm sm:text-base font-medium mr-2 sm:mr-3 text-gray-900 dark:text-gray-100">
+      {/* Symbol Selection Dropdown */}
+      <div className={`bg-white dark:bg-gray-800 p-3 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 mb-6 flex items-center justify-center space-x-3 text-sm`}>
+        <label htmlFor="symbol-select" className="block font-medium text-gray-900 dark:text-gray-100">
           Pair:
         </label>
         <select
           id="symbol-select"
           value={selectedSymbol}
           onChange={(e) => setSelectedSymbol(e.target.value)}
-          className={`appearance-none bg-gray-100 dark:bg-gray-700 py-1 px-2 rounded-md border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base`}
+          className={`bg-gray-100 dark:bg-gray-700 py-1.5 px-3 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500`}
         >
           <option value="BTC/USDT">BTC/USDT</option>
           <option value="ETH/USDT">ETH/USDT</option>
@@ -149,8 +159,12 @@ const HomePage: React.FC = () => {
         </select>
       </div>
 
-      {isLoading && <p className="text-lg text-blue-400 mb-4">Loading market data...</p>}
-      {error && <p className="text-lg text-red-500 mb-4">{error}</p>}
+      {isLoading && (
+        <p className="text-lg text-blue-400 mb-4">Loading market data...</p>
+      )}
+      {error && (
+        <p className="text-lg text-red-500 mb-4">{error}</p>
+      )}
 
       {!isLoading && currentPrice > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full max-w-7xl">
@@ -158,7 +172,8 @@ const HomePage: React.FC = () => {
             theme={theme}
             currentPrice={currentPrice}
             candlestickData={candlestickData}
-            selectedSymbol={selectedSymbol}
+            selectedSymbol={selectedSymbol} // Pass selected symbol to Chart
+            // panelBg and borderColor are now handled internally by ChartComponent
           />
 
           <OrderPanel
@@ -174,13 +189,14 @@ const HomePage: React.FC = () => {
             totalCost={totalCost}
             handlePlaceTrade={handlePlaceTrade}
             currentPrice={currentPrice}
+            // panelBg, borderColor, inputBg, buttonBg, textColor are now handled internally by OrderPanel
             buyButtonBg={buyButtonBg}
             sellButtonBg={sellButtonBg}
           />
 
           <div className={`lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6`}>
             <RiskManagement
-              theme={theme}
+              theme={theme} // Keep theme prop for potential specific overrides
               capital={capital}
               setCapital={setCapital}
               riskPerTradePct={riskPerTradePct}
@@ -193,19 +209,21 @@ const HomePage: React.FC = () => {
               stopLossPrice={stopLossPrice}
               takeProfitPrice={takeProfitPrice}
               positionSize={positionSize}
+              // REMOVED: panelBg, borderColor, inputBg, textColor props
             />
 
             <TradingJournal
-              theme={theme}
+              theme={theme} // Keep theme prop for specific table header background if needed
               tradeJournal={tradeJournal}
+              // REMOVED: panelBg, borderColor props
             />
           </div>
         </div>
       ) : (
         <div className={`min-h-[calc(100vh-150px)] flex items-center justify-center`}>
-          <p className="text-xl">
-            {error ? `Error: ${error}` : "Fetching real-time market data..."}
-          </p>
+            <p className="text-xl">
+                {error ? `Error: ${error}` : "Fetching real-time market data..."}
+            </p>
         </div>
       )}
     </div>

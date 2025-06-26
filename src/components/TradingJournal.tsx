@@ -17,52 +17,53 @@ interface TradeEntry {
   stopLossPrice: string;
   takeProfitPrice: string;
   positionSize: string;
+  symbol: string; // Ensure symbol is part of TradeEntry if your data includes it
 }
 
 interface TradingJournalProps {
-  theme: string;
+  theme: string; // Keep theme prop for specific table header background if needed
   tradeJournal: TradeEntry[];
-  panelBg: string;
-  borderColor: string;
+  // REMOVED: panelBg, borderColor props from here
 }
 
 const TradingJournal: React.FC<TradingJournalProps> = ({
-  theme,
+  theme, // We still use the theme prop for conditional styling if needed, otherwise removed.
   tradeJournal,
-  panelBg,
-  borderColor,
+  // REMOVED: panelBg, borderColor from destructuring
 }) => {
-  // Determine text color based on theme for general table content
-  const textColor = theme === 'dark' ? 'text-gray-100' : 'text-gray-900';
+  // Apply panel background and border colors using dark: variants directly
+  const panelClasses = `bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 flex flex-col`;
 
   return (
-    <div className={`${panelBg} p-4 rounded-xl shadow-lg border ${borderColor} flex flex-col`}>
-      <h2 className="text-xl sm:text-2xl font-semibold mb-4">Trading Journal</h2>
+    <div className={panelClasses}>
+      <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Trading Journal</h2>
       <div className="overflow-auto max-h-[400px] flex-grow">
         {tradeJournal.length === 0 ? (
-          <p className={`text-center opacity-70 ${textColor}`}>No trades recorded yet.</p>
+          <p className="text-center opacity-70 text-gray-900 dark:text-gray-100">No trades recorded yet.</p>
         ) : (
-          <table className="min-w-full text-sm">
+          <table className="min-w-full text-sm text-gray-900 dark:text-gray-100">
             <thead>
+              {/* Table header background still uses theme prop for specific color */}
               <tr className={`${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'} sticky top-0`}>
-                <th className={`px-2 py-2 text-left font-semibold rounded-tl-lg ${textColor}`}>Time</th>
-                <th className={`px-2 py-2 text-left font-semibold ${textColor}`}>Action</th>
-                <th className={`px-2 py-2 text-left font-semibold ${textColor}`}>Type</th>
-                <th className={`px-2 py-2 text-left font-semibold ${textColor}`}>Price</th>
-                <th className={`px-2 py-2 text-left font-semibold ${textColor}`}>Amount</th>
-                <th className={`px-2 py-2 text-left font-semibold rounded-tr-lg ${textColor}`}>Total</th>
+                <th className="px-2 py-2 text-left font-semibold rounded-tl-lg">Time</th>
+                <th className="px-2 py-2 text-left font-semibold">Symbol</th> {/* Added Symbol column */}
+                <th className="px-2 py-2 text-left font-semibold">Action</th>
+                <th className="px-2 py-2 text-left font-semibold">Type</th>
+                <th className="px-2 py-2 text-left font-semibold">Price</th>
+                <th className="px-2 py-2 text-left font-semibold">Amount</th>
+                <th className="px-2 py-2 text-left font-semibold rounded-tr-lg">Total</th>
               </tr>
             </thead>
             <tbody>
               {tradeJournal.map((trade) => (
                 <tr key={trade.id} className="border-t border-gray-600 dark:border-gray-200">
-                  {/* Apply textColor to each td */}
-                  <td className={`px-2 py-2 whitespace-nowrap ${textColor}`}>{trade.time}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{trade.time}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{trade.symbol}</td>
                   <td className={`px-2 py-2 font-medium ${trade.action === 'buy' ? 'text-green-400' : 'text-red-400'}`}>{trade.action.toUpperCase()}</td>
-                  <td className={`px-2 py-2 ${textColor}`}>{trade.orderType.toUpperCase()}</td>
-                  <td className={`px-2 py-2 ${textColor}`}>${trade.price}</td>
-                  <td className={`px-2 py-2 ${textColor}`}>{trade.amount}</td>
-                  <td className={`px-2 py-2 ${textColor}`}>${trade.total}</td>
+                  <td className="px-2 py-2">{trade.orderType.toUpperCase()}</td>
+                  <td className="px-2 py-2">${trade.price}</td>
+                  <td className="px-2 py-2">{trade.amount}</td>
+                  <td className="px-2 py-2">${trade.total}</td>
                 </tr>
               ))}
             </tbody>
