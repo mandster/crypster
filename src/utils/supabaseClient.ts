@@ -1,17 +1,17 @@
-// src/utils/supabaseClient.ts
-import { createClient } from '@supabase/supabase-js';
+    // src/utils/supabaseClient.ts
+    import { createClient } from '@supabase/supabase-js';
 
-// Ensure these environment variables are defined
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Supabase URL or Anon Key is missing. Please check your .env.local file.");
-  // Handle this error appropriately in a production environment (e.g., crash the app or show a prominent error)
-  // For development, we'll allow it to proceed but log the error.
-}
+    // These checks are good, but if env vars are truly missing on Vercel,
+    // the build will error before this code even fully executes in the way you expect.
+    if (!supabaseUrl) {
+      throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable.');
+    }
+    if (!supabaseAnonKey) {
+      throw new Error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable.');
+    }
 
-// Create and export the Supabase client instance
-// This client can be used for both authentication and database interactions
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
-
+    export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    
