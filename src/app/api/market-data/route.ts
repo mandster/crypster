@@ -1,6 +1,6 @@
 // src/app/api/market-data/route.ts
 import { NextResponse } from 'next/server';
-import ccxt from 'ccxt';
+import ccxt, { OHLCV } from 'ccxt'; // Import OHLCV type
 
 // Default symbol if none is provided
 const DEFAULT_SYMBOL = 'BTC/USDT';
@@ -15,7 +15,7 @@ export const revalidate = 0;
 const generateDummyCandlestickData = (symbol: string = DEFAULT_SYMBOL, count: number = 50) => {
   const data = [];
   let lastClose = (symbol === 'BTC/USDT') ? 60000 : (symbol === 'ETH/USDT' ? 3000 : (symbol === 'XRP/USDT' ? 0.5 : 100)); // Base price for dummy data
-  
+
   for (let i = 0; i < count; i++) {
     // Small random fluctuation around the last close
     const fluctuation = (Math.random() - 0.5) * (lastClose * 0.005); // +/- 0.5% fluctuation
@@ -23,9 +23,8 @@ const generateDummyCandlestickData = (symbol: string = DEFAULT_SYMBOL, count: nu
     const high = open + Math.random() * (lastClose * 0.002);
     const low = open - Math.random() * (lastClose * 0.002);
     const close = low + Math.random() * (high - low);
-    
-    lastClose = close; // Update lastClose for the next candle
 
+    lastClose = close; // Update lastClose for the next candle
     const timestamp = Date.now() - (count - 1 - i) * 60 * 1000; // 1-minute intervals
     data.push({
       time: new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
@@ -47,7 +46,7 @@ const mexc = process.env.USE_MOCK_DATA !== 'true' ? new ccxt.mexc({
   options: {
     recvWindow: 30000,
   },
-}) : null; // Initialize only if not using mock data
+}) : null;
 
 /**
  * Handles GET requests to fetch market data (current price and candlestick data).
@@ -74,7 +73,6 @@ export async function GET(request: Request) {
 
   // --- Live Data Fetching (only if not using mock data) ---
   if (!mexc) {
-    // This case should ideally not happen if mexc is initialized conditionally
     return NextResponse.json(
       { error: "MEXC exchange client not initialized for live data." },
       { status: 500 }
@@ -83,16 +81,29 @@ export async function GET(request: Request) {
 
   try {
     const ticker = await mexc.fetchTicker(symbol);
-    const ohlcv = await mexc.fetchOHLCV(symbol, '1m', undefined, 50);
+    // Explicitly type `ohlcv` as OHLCV[]
+    const ohlcv: OHLCV[] = await mexc.fetchOHLCV(symbol, '1m', undefined, 50);
 
-    const candlestickData = ohlcv.map((candle: number[]) => ({
-      time: new Date(candle[0]).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      open: candle[1],
-      high: candle[2],
-      low: candle[3],
-      close: candle[4],
-      volume: candle[5],
-    }));
+    const candlestickData = ohlcv.map((candle: OHLCV) => {
+      // Ensure each element is explicitly treated as a number.
+      // The `|| 0` provides a fallback in case a value is unexpectedly null or undefined,
+      // which should ideally not happen with valid OHLCV data but handles the `Num` type.
+      const timestamp = (candle[0] || 0) as number;
+      const open = (candle[1] || 0) as number;
+      const high = (candle[2] || 0) as number;
+      const low = (candle[3] || 0) as number;
+      const close = (candle[4] || 0) as number;
+      const volume = (candle[5] || 0) as number;
+
+      return {
+        time: new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        open: open,
+        high: high,
+        low: low,
+        close: close,
+        volume: volume,
+      };
+    });
 
     return NextResponse.json({
       currentPrice: ticker.last,
