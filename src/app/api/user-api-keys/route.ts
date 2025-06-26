@@ -1,7 +1,7 @@
 // src/app/api/user-api-keys/route.ts
 import { NextResponse } from 'next/server';
 import { supabase } from '@/utils/supabaseClient';
-import { encrypt } from '@/utils/encryption'; // Import the encryption utility
+import { encrypt, decrypt } from '@/utils/encryption'; // <-- This line needs 'decrypt' to be properly exported
 
 /**
  * Handles POST requests to store encrypted user API keys in Supabase.
@@ -66,8 +66,6 @@ export async function POST(request: Request) {
 /**
  * Handles GET requests to retrieve encrypted user API keys from Supabase.
  * This route requires authentication.
- * In a real scenario, you'd decrypt these keys only on the *trading bot* server,
- * not send them decrypted to the frontend. This GET is for demonstration.
  */
 export async function GET(request: Request) {
   try {
@@ -93,17 +91,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'No API keys found for this user.' }, { status: 404 });
     }
 
-    // In a real automated trading setup, the decryption would happen on the backend trading bot.
-    // We are doing it here only for the purpose of demonstrating the values.
-    // NEVER send decrypted secret keys to the frontend in a production application!
-    // For this example, we'll decrypt both for display/testing purposes.
     const decryptedApiKey = decrypt(data[0].encrypted_api_key, data[0].api_key_iv);
     const decryptedSecretKey = decrypt(data[0].encrypted_secret_key, data[0].secret_key_iv);
 
     return NextResponse.json({
       exchange: data[0].exchange,
       apiKey: decryptedApiKey,
-      secretKey: decryptedSecretKey, // DANGER: Do NOT send to frontend in production
+      secretKey: decryptedSecretKey,
       message: "Decrypted keys sent. WARNING: Decrypting and sending secretKey to frontend is INSECURE for production apps."
     }, { status: 200 });
 
