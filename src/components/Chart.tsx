@@ -37,16 +37,14 @@ const Chart: React.FC<ChartProps> = ({ theme, currentPrice, candlestickData, sel
   const bbMiddleSeriesRef = useRef<any>(null);
   const bbLowerSeriesRef = useRef<any>(null);
 
-  // Convert Unix timestamp (seconds) to yyyy-mm-dd, return null for invalid timestamps
-  const formatTime = (timestamp: number): string | null => {
+  // Convert Unix timestamp (seconds) to yyyy-mm-dd, with strict validation
+  const formatTime = (timestamp: number): string => {
     if (!Number.isFinite(timestamp) || timestamp <= 0) {
-      console.warn(`Invalid timestamp: ${timestamp}`);
-      return null;
+      throw new Error(`Invalid timestamp: ${timestamp}`);
     }
     const date = new Date(timestamp * 1000);
     if (isNaN(date.getTime())) {
-      console.warn(`Invalid date from timestamp: ${timestamp}`);
-      return null;
+      throw new Error(`Invalid date from timestamp: ${timestamp}`);
     }
     const year = date.getUTCFullYear();
     const month = String(date.getUTCMonth() + 1).padStart(2, '0');
@@ -113,35 +111,59 @@ const Chart: React.FC<ChartProps> = ({ theme, currentPrice, candlestickData, sel
   }, [theme]);
 
   useEffect(() => {
-    // Filter out invalid candlestick data
-    const validCandlestickData = candlestickData.filter((d) => formatTime(d.time) !== null);
+    // Filter and validate candlestick data
+    const validCandlestickData = candlestickData
+      .filter((d) => {
+        try {
+          formatTime(d.time);
+          return true;
+        } catch {
+          return false;
+        }
+      })
+      .filter((d) => Number.isFinite(d.open) && Number.isFinite(d.high) && Number.isFinite(d.low) && Number.isFinite(d.close));
+
+    console.log('Valid candlestick data:', validCandlestickData);
+
     if (candlestickSeriesRef.current && validCandlestickData.length > 0) {
-      candlestickSeriesRef.current.setData(
-        validCandlestickData.map((d) => ({
-          time: formatTime(d.time)!,
-          open: d.open,
-          high: d.high,
-          low: d.low,
-          close: d.close,
-        }))
-      );
+      try {
+        candlestickSeriesRef.current.setData(
+          validCandlestickData.map((d) => ({
+            time: formatTime(d.time),
+            open: d.open,
+            high: d.high,
+            low: d.low,
+            close: d.close,
+          }))
+        );
+      } catch (err) {
+        console.error('Error setting candlestick data:', err);
+      }
     }
     if (volumeSeriesRef.current && validCandlestickData.length > 0) {
-      volumeSeriesRef.current.setData(
-        validCandlestickData.map((d) => ({
-          time: formatTime(d.time)!,
-          value: d.volume,
-          color: d.close >= d.open ? '#26a69a' : '#ef5350',
-        }))
-      );
+      try {
+        volumeSeriesRef.current.setData(
+          validCandlestickData.map((d) => ({
+            time: formatTime(d.time),
+            value: d.volume,
+            color: d.close >= d.open ? '#26a69a' : '#ef5350',
+          }))
+        );
+      } catch (err) {
+        console.error('Error setting volume data:', err);
+      }
     }
     if (rsiSeriesRef.current && rsiData.length > 0 && validCandlestickData.length >= rsiData.length) {
-      rsiSeriesRef.current.setData(
-        rsiData.map((value, index) => ({
-          time: formatTime(validCandlestickData[index]?.time)!,
-          value,
-        }))
-      );
+      try {
+        rsiSeriesRef.current.setData(
+          rsiData.map((value, index) => ({
+            time: formatTime(validCandlestickData[index]?.time),
+            value,
+          }))
+        );
+      } catch (err) {
+        console.error('Error setting RSI data:', err);
+      }
     }
     if (
       bbUpperSeriesRef.current &&
@@ -151,23 +173,27 @@ const Chart: React.FC<ChartProps> = ({ theme, currentPrice, candlestickData, sel
       validCandlestickData.length >= bollingerBands.length &&
       bollingerBands[bollingerBands.length - 1]?.lower !== undefined
     ) {
-      const bbData = bollingerBands.map((bb, index) => ({
-        time: formatTime(validCandlestickData[index]?.time),
-        upper: bb.upper,
-        middle: bb.middle,
-        lower: bb.lower,
-      })).filter((d) => d.time !== null);
-      bbUpperSeriesRef.current.setData(bbData.map((d) => ({ time: d.time!, value: d.upper })));
-      bbMiddleSeriesRef.current.setData(bbData.map((d) => ({ time: d.time!, value: d.middle })));
-      bbLowerSeriesRef.current.setData(bbData.map((d) => ({ time: d.time!, value: d.lower })));
+      try {
+        const bbData = bollingerBands.map((bb, index) => ({
+          time: formatTime(validCandlestickData[index]?.time),
+          upper: bb.upper,
+          middle: bb.middle,
+          lower: bb.lower,
+        })).filter((d) => d.time !== null);
+        bbUpperSeriesRef.current.setData(bbData.map((d) => ({ time: d.time!, value: d.upper })));
+        bbMiddleSeriesRef.current.setData(bbData.map((d) => ({ time: d.time!, value: d.middle })));
+        bbLowerSeriesRef.current.setData(bbData.map((d) => ({ time: d.time!, value: d.lower })));
+      } catch (err) {
+        console.error('Error setting Bollinger Bands data:', err);
+      }
     }
   }, [candlestickData, rsiData, bollingerBands]);
 
   useEffect(() => {
     if (candlestickSeriesRef.current && currentPrice > 0) {
       const now = Math.floor(Date.now() / 1000);
-      const formattedTime = formatTime(now);
-      if (formattedTime) {
+      try {
+        const formattedTime = formatTime(now);
         candlestickSeriesRef.current.update({
           time: formattedTime,
           open: currentPrice,
@@ -175,6 +201,8 @@ const Chart: React.FC<ChartProps> = ({ theme, currentPrice, candlestickData, sel
           low: currentPrice,
           close: currentPrice,
         });
+      } catch (err) {
+        console.error('Error updating current price:', err);
       }
     }
   }, [currentPrice]);

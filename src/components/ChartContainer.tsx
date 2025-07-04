@@ -87,6 +87,9 @@ const ChartContainer: React.FC<ChartContainerProps> = ({ theme, initialSymbol, s
             console.warn(`Invalid candle data: ${JSON.stringify(newCandle)}`);
             return prev;
           }
+          if (prev.length && newCandle.time <= prev[prev.length - 1].time) {
+            return prev;
+          }
           const newData = [...prev.slice(-99), newCandle];
           const closes = newData.map((d) => d.close);
           setRsiData(closes.length >= 14 ? calculateRSI(closes, 14) : []);
@@ -104,13 +107,14 @@ const ChartContainer: React.FC<ChartContainerProps> = ({ theme, initialSymbol, s
 
     websocket.onerror = () => {
       setError('WebSocket connection failed. Falling back to dummy data.');
-      const dummyData = generateCandlestickData();
-      const validDummyData = dummyData.filter((d) => Number.isFinite(d.time) && d.time > 0);
-      setCandlestickData(validDummyData);
-      const lastPrice = validDummyData[validDummyData.length - 1]?.close || 0;
+      const dummyData = generateCandlestickData()
+        .filter((d) => Number.isFinite(d.time) && d.time > 0)
+        .sort((a, b) => a.time - b.time);
+      setCandlestickData(dummyData);
+      const lastPrice = dummyData[dummyData.length - 1]?.close || 0;
       setLocalCurrentPrice(lastPrice);
       setCurrentPrice(lastPrice);
-      const closes = validDummyData.map((d) => d.close);
+      const closes = dummyData.map((d) => d.close);
       setRsiData(closes.length >= 14 ? calculateRSI(closes, 14) : []);
       setBollingerBands(closes.length >= 20 ? calculateBollingerBands(closes, 20) : []);
       setIsLoading(false);
@@ -129,10 +133,7 @@ const ChartContainer: React.FC<ChartContainerProps> = ({ theme, initialSymbol, s
   const latestRSI = rsiData.length > 0 ? rsiData[rsiData.length - 1].toFixed(2) : 'N/A';
   const latestBB = bollingerBands.length > 0 ? bollingerBands[bollingerBands.length - 1] : null;
   const bbWidth = latestBB ? ((latestBB.upper - latestBB.lower) / latestBB.middle * 100).toFixed(2) : 'N/A';
-  const signalHighlight =
-  latestBB !== null &&
-  parseFloat(latestRSI) < rsiThreshold &&
-  currentPrice <= latestBB.lower;
+  const signalHighlight = parseFloat(latestRSI) < rsiThreshold && latestBB !== null && currentPrice <= latestBB.lower;
   const suggestedStopLoss = currentPrice * 0.98;
   const suggestedTakeProfit = latestBB?.middle || currentPrice * 1.04;
 
