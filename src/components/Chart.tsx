@@ -1,16 +1,10 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import {
-  createChart,
-  CrosshairMode,
-  Time,
-  LineStyle,
-  type IChartApi,
-} from 'lightweight-charts';
+import { createChart, ColorType } from 'lightweight-charts';
 
 interface CandlestickData {
-  time: string;
+  time: number;
   open: number;
   high: number;
   low: number;
@@ -24,55 +18,62 @@ interface BollingerBand {
   lower: number;
 }
 
-interface Props {
+interface ChartProps {
   theme: string;
-  candlestickData: CandlestickData[];
   currentPrice: number;
-  setCurrentPrice: (price: number) => void;
+  candlestickData: CandlestickData[];
   selectedSymbol: string;
-  rsiData?: number[];
-  bollingerBands?: BollingerBand[];
+  rsiData: number[];
+  bollingerBands: BollingerBand[];
 }
 
+const Chart: React.FC<ChartProps> = ({ theme, currentPrice, candlestickData, selectedSymbol, rsiData, bollingerBands }) => {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<any>(null);
+  const candlestickSeriesRef = useRef<any>(null);
+  const volumeSeriesRef = useRef<any>(null);
+  const rsiSeriesRef = useRef<any>(null);
+  const bbUpperSeriesRef = useRef<any>(null);
+  const bbMiddleSeriesRef = useRef<any>(null);
+  const bbLowerSeriesRef = useRef<any>(null);
 
-const Chart: React.FC<Props> = ({
-  theme,
-  candlestickData,
-  currentPrice,
-  selectedSymbol,
-  rsiData = [],
-  bollingerBands = [],
-}) => {
-  const chartContainerRef = useRef<HTMLDivElement | null>(null);
-  const chartRef = useRef<IChartApi | null>(null);
+  // Convert Unix timestamp (seconds) to yyyy-mm-dd, return null for invalid timestamps
+  const formatTime = (timestamp: number): string | null => {
+    if (!Number.isFinite(timestamp) || timestamp <= 0) {
+      console.warn(`Invalid timestamp: ${timestamp}`);
+      return null;
+    }
+    const date = new Date(timestamp * 1000);
+    if (isNaN(date.getTime())) {
+      console.warn(`Invalid date from timestamp: ${timestamp}`);
+      return null;
+    }
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   useEffect(() => {
-    const container = chartContainerRef.current;
-    if (!container) return;
+    if (!chartContainerRef.current) return;
 
-    if (chartRef.current) {
-      chartRef.current.remove();
-      chartRef.current = null;
-    }
-
-    const chart = createChart(container, {
+    const chartOptions = {
+      width: chartContainerRef.current.clientWidth,
+      height: 400,
       layout: {
-        background: { color: theme === 'dark' ? '#1E293B' : '#FFFFFF' },
-        textColor: theme === 'dark' ? '#E2E8F0' : '#1E293B',
+        background: { type: ColorType.Solid, color: theme === 'dark' ? '#1F2937' : '#FFFFFF' },
+        textColor: theme === 'dark' ? '#D1D5DB' : '#1F2937',
       },
       grid: {
-        vertLines: { color: theme === 'dark' ? '#334155' : '#CBD5E1' },
-        horzLines: { color: theme === 'dark' ? '#334155' : '#CBD5E1' },
+        vertLines: { color: theme === 'dark' ? '#374151' : '#E5E7EB' },
+        horzLines: { color: theme === 'dark' ? '#374151' : '#E5E7EB' },
       },
-      crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: '#71649C' },
-      timeScale: { borderColor: '#71649C', timeVisible: true },
-    });
+      timeScale: { timeVisible: true, secondsVisible: false },
+    };
 
-    chartRef.current = chart;
+    chartRef.current = createChart(chartContainerRef.current, chartOptions);
 
-    // -------------------- CANDLESTICK --------------------
-    const candleSeries = chart.addCandlestickSeries({
+    candlestickSeriesRef.current = chartRef.current.addCandlestickSeries({
       upColor: '#26a69a',
       downColor: '#ef5350',
       borderVisible: false,
@@ -80,96 +81,119 @@ const Chart: React.FC<Props> = ({
       wickDownColor: '#ef5350',
     });
 
-    candleSeries.setData(
-      candlestickData.map((d, i) => ({
-        time: (Math.floor(Date.now() / 1000) - (candlestickData.length - 1 - i) * 60) as Time,
-        open: d.open,
-        high: d.high,
-        low: d.low,
-        close: d.close,
-      }))
-    );
-
-    // -------------------- VOLUME --------------------
-    const volumeSeries = chart.addHistogramSeries({
-      color: '#999',
+    volumeSeriesRef.current = chartRef.current.addHistogramSeries({
+      color: '#26a69a',
       priceFormat: { type: 'volume' },
-      priceScaleId: '',
+      priceScale: { scaleMargins: { top: 0.7, bottom: 0 } },
     });
 
-    volumeSeries.setData(
-      candlestickData.map((d, i) => ({
-        time: (Math.floor(Date.now() / 1000) - (candlestickData.length - 1 - i) * 60) as Time,
-        value: d.volume,
-        color: d.close > d.open ? '#26a69a' : '#ef5350',
-      }))
-    );
-
-    // -------------------- BOLLINGER BANDS --------------------
-    if (bollingerBands.length > 0) {
-      const upper = chart.addLineSeries({ color: '#f59e0b', lineWidth: 1 });
-      const middle = chart.addLineSeries({ color: '#0ea5e9', lineWidth: 1, lineStyle: LineStyle.Dotted });
-      const lower = chart.addLineSeries({ color: '#f59e0b', lineWidth: 1 });
-
-      upper.setData(
-        bollingerBands.map((bb, i) => ({
-          time: (Math.floor(Date.now() / 1000) - (bollingerBands.length - 1 - i) * 60) as Time,
-          value: bb.upper,
-        }))
-      );
-      middle.setData(
-        bollingerBands.map((bb, i) => ({
-          time: (Math.floor(Date.now() / 1000) - (bollingerBands.length - 1 - i) * 60) as Time,
-          value: bb.middle,
-        }))
-      );
-      lower.setData(
-        bollingerBands.map((bb, i) => ({
-          time: (Math.floor(Date.now() / 1000) - (bollingerBands.length - 1 - i) * 60) as Time,
-          value: bb.lower,
-        }))
-      );
-    }
-
-    // -------------------- RSI --------------------
-    if (rsiData.length > 0) {
-      const rsiSeries = chart.addLineSeries({
-        priceFormat: { type: 'volume' },
-        priceScaleId: 'rsi',
-        color: '#f44336',
-        lineWidth: 1,
-      });
-
-      chart.priceScale('rsi').applyOptions({
-        scaleMargins: { top: 0.8, bottom: 0 },
-      });
-      
-
-      rsiSeries.setData(
-        rsiData.map((rsi, i) => ({
-          time: (Math.floor(Date.now() / 1000) - (rsiData.length - 1 - i) * 60) as Time,
-          value: rsi,
-        }))
-      );
-    }
-
-    const resizeObserver = new ResizeObserver(() => {
-      if (container && chartRef.current) {
-        chartRef.current.applyOptions({ width: container.clientWidth });
-      }
+    rsiSeriesRef.current = chartRef.current.addLineSeries({
+      color: '#8e44ad',
+      lineWidth: 2,
+      priceScale: { scaleMargins: { top: 0.8, bottom: 0.1 } },
     });
-    resizeObserver.observe(container);
 
-    return () => {
-      resizeObserver.disconnect();
-      if (chartRef.current) {
-        chartRef.current.remove();
-        chartRef.current = null;
+    bbUpperSeriesRef.current = chartRef.current.addLineSeries({ color: '#ff9800', lineWidth: 1 });
+    bbMiddleSeriesRef.current = chartRef.current.addLineSeries({ color: '#2196f3', lineWidth: 1 });
+    bbLowerSeriesRef.current = chartRef.current.addLineSeries({ color: '#ff9800', lineWidth: 1 });
+
+    const handleResize = () => {
+      if (chartRef.current && chartContainerRef.current) {
+        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
       }
     };
-  }, [theme, candlestickData, rsiData, bollingerBands]);
+    window.addEventListener('resize', handleResize);
 
-  return <div ref={chartContainerRef} className="w-full h-full" />;
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (chartRef.current) {
+        chartRef.current.remove();
+      }
+    };
+  }, [theme]);
+
+  useEffect(() => {
+    // Filter out invalid candlestick data
+    const validCandlestickData = candlestickData.filter((d) => formatTime(d.time) !== null);
+    if (candlestickSeriesRef.current && validCandlestickData.length > 0) {
+      candlestickSeriesRef.current.setData(
+        validCandlestickData.map((d) => ({
+          time: formatTime(d.time)!,
+          open: d.open,
+          high: d.high,
+          low: d.low,
+          close: d.close,
+        }))
+      );
+    }
+    if (volumeSeriesRef.current && validCandlestickData.length > 0) {
+      volumeSeriesRef.current.setData(
+        validCandlestickData.map((d) => ({
+          time: formatTime(d.time)!,
+          value: d.volume,
+          color: d.close >= d.open ? '#26a69a' : '#ef5350',
+        }))
+      );
+    }
+    if (rsiSeriesRef.current && rsiData.length > 0 && validCandlestickData.length >= rsiData.length) {
+      rsiSeriesRef.current.setData(
+        rsiData.map((value, index) => ({
+          time: formatTime(validCandlestickData[index]?.time)!,
+          value,
+        }))
+      );
+    }
+    if (
+      bbUpperSeriesRef.current &&
+      bbMiddleSeriesRef.current &&
+      bbLowerSeriesRef.current &&
+      bollingerBands.length > 0 &&
+      validCandlestickData.length >= bollingerBands.length &&
+      bollingerBands[bollingerBands.length - 1]?.lower !== undefined
+    ) {
+      const bbData = bollingerBands.map((bb, index) => ({
+        time: formatTime(validCandlestickData[index]?.time),
+        upper: bb.upper,
+        middle: bb.middle,
+        lower: bb.lower,
+      })).filter((d) => d.time !== null);
+      bbUpperSeriesRef.current.setData(bbData.map((d) => ({ time: d.time!, value: d.upper })));
+      bbMiddleSeriesRef.current.setData(bbData.map((d) => ({ time: d.time!, value: d.middle })));
+      bbLowerSeriesRef.current.setData(bbData.map((d) => ({ time: d.time!, value: d.lower })));
+    }
+  }, [candlestickData, rsiData, bollingerBands]);
+
+  useEffect(() => {
+    if (candlestickSeriesRef.current && currentPrice > 0) {
+      const now = Math.floor(Date.now() / 1000);
+      const formattedTime = formatTime(now);
+      if (formattedTime) {
+        candlestickSeriesRef.current.update({
+          time: formattedTime,
+          open: currentPrice,
+          high: currentPrice,
+          low: currentPrice,
+          close: currentPrice,
+        });
+      }
+    }
+  }, [currentPrice]);
+
+  return (
+    <div className="relative w-full h-full">
+      <div ref={chartContainerRef} className="w-full h-full" />
+      {candlestickData.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-lg">
+          <p className="text-sm text-gray-500 dark:text-gray-400">Waiting for market data...</p>
+        </div>
+      )}
+      {candlestickData.length > 0 && bollingerBands.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-lg">
+          <p className="text-sm text-gray-500 dark:text-gray-400">Waiting for Bollinger Bands data (requires 20 periods)...</p>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default Chart;

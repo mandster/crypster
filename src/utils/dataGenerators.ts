@@ -1,100 +1,92 @@
-// src/utils/dataGenerators.ts
-
-// Interface for the candlestick data structure
 export interface CandlestickData {
-    time: string;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface BollingerBand {
+  upper: number;
+  middle: number;
+  lower: number;
+}
+
+export const generateCandlestickData = (count: number = 100): CandlestickData[] => {
+  const data: CandlestickData[] = [];
+  let price = 50000;
+  const startTime = Math.floor(Date.now() / 1000) - count * 3600;
+
+  for (let i = 0; i < count; i++) {
+    const open = price;
+    const change = (Math.random() - 0.5) * 1000;
+    const close = open + change;
+    const high = Math.max(open, close) + Math.random() * 500;
+    const low = Math.min(open, close) - Math.random() * 500;
+    const volume = Math.random() * 10000 + 1000;
+    const time = startTime + i * 3600;
+
+    if (!Number.isFinite(time) || time <= 0) {
+      console.warn(`Invalid time generated: ${time}`);
+      continue;
+    }
+
+    data.push({
+      time,
+      open,
+      high,
+      low,
+      close,
+      volume,
+    });
+    price = close;
   }
+  return data;
+};
 
-
-// ✅ Add this:
-export function calculateRSI(closes: number[], period = 14): number[] {
+export const calculateRSI = (closes: number[], period: number = 14): number[] => {
+  if (closes.length < period) return [];
   const rsi: number[] = [];
   let gains = 0;
   let losses = 0;
 
   for (let i = 1; i <= period; i++) {
-    const delta = closes[i] - closes[i - 1];
-    if (delta >= 0) gains += delta;
-    else losses -= delta;
+    const change = closes[i] - closes[i - 1];
+    gains += change > 0 ? change : 0;
+    losses += change < 0 ? -change : 0;
   }
 
-  gains /= period;
-  losses /= period;
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
 
-  rsi[period] = 100 - 100 / (1 + gains / losses);
+  for (let i = period; i < closes.length; i++) {
+    const change = closes[i] - closes[i - 1];
+    const gain = change > 0 ? change : 0;
+    const loss = change < 0 ? -change : 0;
 
-  for (let i = period + 1; i < closes.length; i++) {
-    const delta = closes[i] - closes[i - 1];
-    if (delta >= 0) {
-      gains = (gains * (period - 1) + delta) / period;
-      losses = (losses * (period - 1)) / period;
-    } else {
-      gains = (gains * (period - 1)) / period;
-      losses = (losses * (period - 1) - delta) / period;
-    }
+    avgGain = (avgGain * (period - 1) + gain) / period;
+    avgLoss = (avgLoss * (period - 1) + loss) / period;
 
-    rsi[i] = 100 - 100 / (1 + gains / losses);
+    const rs = avgGain / (avgLoss || 1);
+    rsi.push(100 - 100 / (1 + rs));
   }
-
   return rsi;
-}
+};
 
-export function calculateBollingerBands(closes: number[], period = 20) {
-  const bands: { upper: number; lower: number }[] = [];
+export const calculateBollingerBands = (closes: number[], period: number = 20, multiplier: number = 2): BollingerBand[] => {
+  if (closes.length < period) return [];
+  const bands: BollingerBand[] = [];
 
-  for (let i = 0; i <= closes.length - period; i++) {
-    const slice = closes.slice(i, i + period);
-    const avg = slice.reduce((sum, val) => sum + val, 0) / period;
-    const stdDev = Math.sqrt(slice.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / period);
-
+  for (let i = period - 1; i < closes.length; i++) {
+    const slice = closes.slice(i - period + 1, i + 1);
+    const sma = slice.reduce((sum, val) => sum + val, 0) / period;
+    const stdDev = Math.sqrt(slice.reduce((sum, val) => sum + Math.pow(val - sma, 2), 0) / period);
     bands.push({
-      upper: avg + 2 * stdDev,
-      lower: avg - 2 * stdDev,
+      upper: sma + multiplier * stdDev,
+      middle: sma,
+      lower: sma - multiplier * stdDev,
     });
   }
-
   return bands;
-}
-
-  /**
-   * Generates dummy candlestick data for demonstration purposes.
-   * @param count The number of candlestick data points to generate.
-   * @returns An array of CandlestickData objects.
-   */
-  export const generateCandlestickData = (count: number = 50): CandlestickData[] => {
-    const data: CandlestickData[] = [];
-    let lastClose = 50000; // Starting price for the simulation
-  
-    for (let i = 0; i < count; i++) {
-      // Simulate price movements based on the last close
-      const open = lastClose + (Math.random() - 0.5) * 1000; // Open price near previous close
-      const high = open + Math.random() * 2000; // High price above open
-      const low = open - Math.random() * 2000; // Low price below open
-      const close = low + Math.random() * (high - low); // Close price within high-low range
-  
-      lastClose = close; // Update last close for the next candle
-  
-      // Generate a timestamp for 1-minute intervals
-      const timestamp = Date.now() - (count - 1 - i) * 60 * 1000;
-      const timeString = new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-  
-      // Simulate volume
-      const volume = Math.floor(Math.random() * 1000000) + 100000;
-  
-      data.push({
-        time: timeString,
-        open,
-        high,
-        low,
-        close,
-        volume,
-      });
-    }
-    return data;
-  };
-  
+};

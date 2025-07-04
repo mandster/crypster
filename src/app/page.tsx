@@ -6,6 +6,26 @@ import ChartContainer from '@/components/ChartContainer';
 import OrderPanel from '@/components/OrderPanel';
 import RiskManagement from '@/components/RiskManagement';
 import TradingJournal from '@/components/TradingJournal';
+import crypto from 'crypto';
+
+interface Trade {
+  id: number;
+  time: string;
+  action: 'buy' | 'sell';
+  orderType: 'market' | 'limit';
+  price: string;
+  amount: string;
+  total: string;
+  status: string;
+  capitalBefore: string;
+  riskAmount: string;
+  stopLossPrice: string;
+  takeProfitPrice: string;
+  positionSize: string;
+  symbol: string;
+  orderId?: string;
+  outcome?: 'hit_stop_loss' | 'hit_take_profit' | 'open' | 'closed';
+}
 
 const MemoizedOrderPanel = memo(OrderPanel);
 const MemoizedRiskManagement = memo(RiskManagement);
@@ -19,7 +39,6 @@ const HomePage: React.FC = () => {
   const [priceInput, setPriceInput] = useState('');
   const [amountInput, setAmountInput] = useState('');
   const [totalCost, setTotalCost] = useState(0);
-
   const [capital, setCapital] = useState(10000);
   const [riskPerTradePct, setRiskPerTradePct] = useState(1);
   const [stopLossPct, setStopLossPct] = useState(2);
@@ -29,8 +48,15 @@ const HomePage: React.FC = () => {
   const [takeProfitPrice, setTakeProfitPrice] = useState(0);
   const [positionSize, setPositionSize] = useState(0);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
-
-  const [tradeJournal, setTradeJournal] = useState<any[]>([]);
+  const [selectedSymbol, setSelectedSymbol] = useState('BTCUSDT');
+  const [signal, setSignal] = useState<{
+    rsi: string;
+    bbWidth: string;
+    isActive: boolean;
+    suggestedStopLoss: number;
+    suggestedTakeProfit: number;
+  }>({ rsi: 'N/A', bbWidth: 'N/A', isActive: false, suggestedStopLoss: 0, suggestedTakeProfit: 0 });
+  const [tradeJournal, setTradeJournal] = useState<Trade[]>([]);
 
   useEffect(() => {
     const price = orderType === 'market' ? currentPrice : parseFloat(priceInput);
@@ -42,7 +68,7 @@ const HomePage: React.FC = () => {
     const currentRiskAmount = (capital * riskPerTradePct) / 100;
     setRiskAmount(currentRiskAmount);
 
-    const price = parseFloat(priceInput);
+    const price = parseFloat(priceInput) || currentPrice;
     if (tradeAction === 'buy') {
       setStopLossPrice(price * (1 - stopLossPct / 100));
       setTakeProfitPrice(price * (1 + takeProfitPct / 100));
@@ -52,30 +78,124 @@ const HomePage: React.FC = () => {
     }
 
     setPositionSize(stopLossPct > 0 ? currentRiskAmount / (price * (stopLossPct / 100)) : 0);
-  }, [capital, riskPerTradePct, stopLossPct, takeProfitPct, priceInput, tradeAction]);
+  }, [capital, riskPerTradePct, stopLossPct, takeProfitPct, priceInput, tradeAction, currentPrice]);
 
-  const handlePlaceTrade = useCallback(() => {
-    const tradeDetails = {
+  useEffect(() => {
+    if (signal.isActive) {
+      setTradeAction('buy');
+      setPriceInput(currentPrice.toString());
+      setStopLossPrice(signal.suggestedStopLoss);
+      setTakeProfitPrice(signal.suggestedTakeProfit);
+      setAmountInput((capital * riskPerTradePct / 100 / (currentPrice * (stopLossPct / 100))).toFixed(4));
+    }
+  }, [signal, currentPrice, capital, riskPerTradePct, stopLossPct]);
+
+  useEffect(() => {
+    if (tradeJournal.some((trade) => trade.status === 'Executed' && trade.outcome === 'open')) {
+      const interval = setInterval(async () => {
+        try {
+          const response = await fetch(`https://api.mexc.com/api/v3/ticker/price?symbol=${selectedSymbol}`);
+          const data = await response.json();
+          const latestPrice = parseFloat(data.price);
+          setTradeJournal((prev) =>
+            prev.map((trade) => {
+              if (trade.status !== 'Executed' || trade.outcome !== 'open') return trade;
+              const stopLoss = parseFloat(trade.stopLossPrice);
+              const takeProfit = parseFloat(trade.takeProfitPrice);
+              let outcome: Trade['outcome'] = trade.outcome;
+              let status = trade.status;
+              let profitLoss = 0;
+
+              if (trade.action === 'buy') {
+                if (latestPrice <= stopLoss) {
+                  outcome = 'hit_stop_loss';
+                  status = 'Closed';
+                  profitLoss = (stopLoss - parseFloat(trade.price)) * parseFloat(trade.amount);
+                } else if (latestPrice >= takeProfit) {
+                  outcome = 'hit_take_profit';
+                  status = 'Closed';
+                  profitLoss = (takeProfit - parseFloat(trade.price)) * parseFloat(trade.amount);
+                }
+              } else if (trade.action === 'sell') {
+                if (latestPrice >= stopLoss) {
+                  outcome = 'hit_stop_loss';
+                  status = 'Closed';
+                  profitLoss = (parseFloat(trade.price) - stopLoss) * parseFloat(trade.amount);
+                } else if (latestPrice <= takeProfit) {
+                  outcome = 'hit_take_profit';
+                  status = 'Closed';
+                  profitLoss = (parseFloat(trade.price) - takeProfit) * parseFloat(trade.amount);
+                }
+              }
+
+              if (outcome !== 'open') {
+                setCapital((prev) => prev + profitLoss);
+                return { ...trade, status, outcome, profitLoss: profitLoss.toFixed(2) };
+              }
+              return trade;
+            })
+          );
+        } catch (err) {
+          console.error('Price fetch failed:', err);
+        }
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [tradeJournal, selectedSymbol]);
+
+  const handlePlaceTrade = useCallback(async () => {
+    const price = parseFloat(priceInput) || currentPrice;
+    const tradeDetails: Trade = {
       id: Date.now(),
       time: new Date().toLocaleString(),
       action: tradeAction,
       orderType,
-      price: parseFloat(priceInput).toFixed(2),
+      price: price.toFixed(2),
       amount: parseFloat(amountInput).toFixed(4),
       total: totalCost.toFixed(2),
-      status: 'Simulated Executed',
+      status: 'Pending',
       capitalBefore: capital.toFixed(2),
       riskAmount: riskAmount.toFixed(2),
       stopLossPrice: stopLossPrice.toFixed(2),
       takeProfitPrice: takeProfitPrice.toFixed(2),
       positionSize: positionSize.toFixed(4),
-      symbol: 'BTC/USDT',
+      symbol: selectedSymbol,
+      outcome: 'open',
     };
 
-    setTradeJournal((prev) => [tradeDetails, ...prev]);
-    const simulatedPnL = (Math.random() - 0.5) * riskAmount * 2;
-    setCapital((prev) => prev + simulatedPnL);
-  }, [tradeAction, orderType, priceInput, amountInput, totalCost, capital, riskAmount, stopLossPrice, takeProfitPrice, positionSize]);
+    try {
+      const apiKey = process.env.MEXC_API_KEY;
+      const apiSecret = process.env.MEXC_API_SECRET;
+      if (!apiKey || !apiSecret) {
+        throw new Error('MEXC API credentials not configured');
+      }
+
+      const timestamp = Date.now();
+      const queryString = `symbol=${selectedSymbol}&side=${tradeAction.toUpperCase()}&type=${orderType.toUpperCase()}&quantity=${amountInput}${orderType === 'limit' ? `&price=${price}` : ''}&recvWindow=5000&timestamp=${timestamp}`;
+      const signature = crypto
+        .createHmac('sha256', apiSecret)
+        .update(queryString)
+        .digest('hex');
+
+      const response = await fetch(`https://api.mexc.com/api/v3/order?${queryString}&signature=${signature}`, {
+        method: 'POST',
+        headers: {
+          'X-MEXC-APIKEY': apiKey,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      if (result.code !== 200) {
+        throw new Error(result.msg || 'Failed to place order');
+      }
+
+      setTradeJournal((prev) => [{ ...tradeDetails, status: 'Executed', orderId: result.orderId }, ...prev]);
+    } catch (err) {
+      console.error('MEXC trade failed:', err);
+      setTradeJournal((prev) => [{ ...tradeDetails, status: 'Failed' }, ...prev]);
+    }
+  }, [tradeAction, orderType, priceInput, amountInput, totalCost, capital, riskAmount, stopLossPrice, takeProfitPrice, positionSize, selectedSymbol, currentPrice]);
 
   const buyButtonBg = 'bg-green-500 hover:bg-green-600';
   const sellButtonBg = 'bg-red-500 hover:bg-red-600';
@@ -101,12 +221,13 @@ const HomePage: React.FC = () => {
       <h1 className="text-3xl sm:text-4xl font-bold mb-6 text-center text-gray-900 dark:text-gray-100">Crypster Trading</h1>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full max-w-7xl min-h-[24rem]">
         <div className="lg:col-span-2">
-        <ChartContainer
-        theme={theme}
-        initialSymbol="BTC/USDT"
-        setCurrentPrice={setCurrentPrice}
-      />
-      
+          <ChartContainer
+            theme={theme}
+            initialSymbol={selectedSymbol}
+            setCurrentPrice={setCurrentPrice}
+            onSymbolChange={setSelectedSymbol}
+            onSignalChange={setSignal}
+          />
         </div>
         <div>
           <MemoizedOrderPanel
