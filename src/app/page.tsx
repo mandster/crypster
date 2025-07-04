@@ -1,272 +1,124 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, memo } from 'react';
-import { useAuthAndTheme } from '@/context/AuthAndThemeProvider';
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ChartContainer from '@/components/ChartContainer';
-import OrderPanel from '@/components/OrderPanel';
-import RiskManagement from '@/components/RiskManagement';
 import TradingJournal from '@/components/TradingJournal';
-import crypto from 'crypto';
+import OrderPanel from '@/components/OrderPanel';
+import { supabase } from '@/utils/supabaseClient';
+import { useAuthAndTheme } from '@/context/AuthAndThemeProvider';
 
 interface Trade {
   id: number;
   time: string;
-  action: 'buy' | 'sell';
-  orderType: 'market' | 'limit';
-  price: string;
-  amount: string;
-  total: string;
-  status: string;
-  capitalBefore: string;
-  riskAmount: string;
-  stopLossPrice: string;
-  takeProfitPrice: string;
-  positionSize: string;
   symbol: string;
-  orderId?: string;
-  outcome?: 'hit_stop_loss' | 'hit_take_profit' | 'open' | 'closed';
+  action: string;
+  price: number;
+  orderId: string;
+  status: string;
+  outcome: string;
+  profitLoss: number;
 }
 
-const MemoizedOrderPanel = memo(OrderPanel);
-const MemoizedRiskManagement = memo(RiskManagement);
-const MemoizedTradingJournal = memo(TradingJournal);
-
 const HomePage: React.FC = () => {
-  const { session, isAuthLoading, theme } = useAuthAndTheme();
-
-  const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
-  const [tradeAction, setTradeAction] = useState<'buy' | 'sell'>('buy');
-  const [priceInput, setPriceInput] = useState('');
-  const [amountInput, setAmountInput] = useState('');
-  const [totalCost, setTotalCost] = useState(0);
-  const [capital, setCapital] = useState(10000);
-  const [riskPerTradePct, setRiskPerTradePct] = useState(1);
-  const [stopLossPct, setStopLossPct] = useState(2);
-  const [takeProfitPct, setTakeProfitPct] = useState(4);
-  const [riskAmount, setRiskAmount] = useState(0);
-  const [stopLossPrice, setStopLossPrice] = useState(0);
-  const [takeProfitPrice, setTakeProfitPrice] = useState(0);
-  const [positionSize, setPositionSize] = useState(0);
-  const [currentPrice, setCurrentPrice] = useState<number>(0);
+  const { user } = useAuthAndTheme();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [currentPrice, setCurrentPrice] = useState(0);
   const [selectedSymbol, setSelectedSymbol] = useState('BTCUSDT');
-  const [signal, setSignal] = useState<{
-    rsi: string;
-    bbWidth: string;
-    isActive: boolean;
-    suggestedStopLoss: number;
-    suggestedTakeProfit: number;
-  }>({ rsi: 'N/A', bbWidth: 'N/A', isActive: false, suggestedStopLoss: 0, suggestedTakeProfit: 0 });
-  const [tradeJournal, setTradeJournal] = useState<Trade[]>([]);
+  const [trades, setTrades] = useState<Trade[]>([]);
+  const [supabaseError, setSupabaseError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(searchParams.get('message') || null);
 
   useEffect(() => {
-    const price = orderType === 'market' ? currentPrice : parseFloat(priceInput);
-    const amount = parseFloat(amountInput);
-    setTotalCost(!isNaN(price) && !isNaN(amount) ? price * amount : 0);
-  }, [amountInput, priceInput, orderType, currentPrice]);
-
-  useEffect(() => {
-    const currentRiskAmount = (capital * riskPerTradePct) / 100;
-    setRiskAmount(currentRiskAmount);
-
-    const price = parseFloat(priceInput) || currentPrice;
-    if (tradeAction === 'buy') {
-      setStopLossPrice(price * (1 - stopLossPct / 100));
-      setTakeProfitPrice(price * (1 + takeProfitPct / 100));
-    } else {
-      setStopLossPrice(price * (1 + stopLossPct / 100));
-      setTakeProfitPrice(price * (1 - takeProfitPct / 100));
+    if (!user) {
+      router.push('/login');
+      return;
     }
 
-    setPositionSize(stopLossPct > 0 ? currentRiskAmount / (price * (stopLossPct / 100)) : 0);
-  }, [capital, riskPerTradePct, stopLossPct, takeProfitPct, priceInput, tradeAction, currentPrice]);
-
-  useEffect(() => {
-    if (signal.isActive) {
-      setTradeAction('buy');
-      setPriceInput(currentPrice.toString());
-      setStopLossPrice(signal.suggestedStopLoss);
-      setTakeProfitPrice(signal.suggestedTakeProfit);
-      setAmountInput((capital * riskPerTradePct / 100 / (currentPrice * (stopLossPct / 100))).toFixed(4));
-    }
-  }, [signal, currentPrice, capital, riskPerTradePct, stopLossPct]);
-
-  useEffect(() => {
-    if (tradeJournal.some((trade) => trade.status === 'Executed' && trade.outcome === 'open')) {
-      const interval = setInterval(async () => {
-        try {
-          const response = await fetch(`https://api.mexc.com/api/v3/ticker/price?symbol=${selectedSymbol}`);
-          const data = await response.json();
-          const latestPrice = parseFloat(data.price);
-          setTradeJournal((prev) =>
-            prev.map((trade) => {
-              if (trade.status !== 'Executed' || trade.outcome !== 'open') return trade;
-              const stopLoss = parseFloat(trade.stopLossPrice);
-              const takeProfit = parseFloat(trade.takeProfitPrice);
-              let outcome: Trade['outcome'] = trade.outcome;
-              let status = trade.status;
-              let profitLoss = 0;
-
-              if (trade.action === 'buy') {
-                if (latestPrice <= stopLoss) {
-                  outcome = 'hit_stop_loss';
-                  status = 'Closed';
-                  profitLoss = (stopLoss - parseFloat(trade.price)) * parseFloat(trade.amount);
-                } else if (latestPrice >= takeProfit) {
-                  outcome = 'hit_take_profit';
-                  status = 'Closed';
-                  profitLoss = (takeProfit - parseFloat(trade.price)) * parseFloat(trade.amount);
-                }
-              } else if (trade.action === 'sell') {
-                if (latestPrice >= stopLoss) {
-                  outcome = 'hit_stop_loss';
-                  status = 'Closed';
-                  profitLoss = (parseFloat(trade.price) - stopLoss) * parseFloat(trade.amount);
-                } else if (latestPrice <= takeProfit) {
-                  outcome = 'hit_take_profit';
-                  status = 'Closed';
-                  profitLoss = (parseFloat(trade.price) - takeProfit) * parseFloat(trade.amount);
-                }
-              }
-
-              if (outcome !== 'open') {
-                setCapital((prev) => prev + profitLoss);
-                return { ...trade, status, outcome, profitLoss: profitLoss.toFixed(2) };
-              }
-              return trade;
-            })
-          );
-        } catch (err) {
-          console.error('Price fetch failed:', err);
+    const fetchTrades = async () => {
+      try {
+        const { data, error } = await supabase.from('trades').select('*').order('time', { ascending: false });
+        if (error) {
+          throw new Error(`Supabase error: ${error.message}`);
         }
-      }, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [tradeJournal, selectedSymbol]);
-
-  const handlePlaceTrade = useCallback(async () => {
-    const price = parseFloat(priceInput) || currentPrice;
-    const tradeDetails: Trade = {
-      id: Date.now(),
-      time: new Date().toLocaleString(),
-      action: tradeAction,
-      orderType,
-      price: price.toFixed(2),
-      amount: parseFloat(amountInput).toFixed(4),
-      total: totalCost.toFixed(2),
-      status: 'Pending',
-      capitalBefore: capital.toFixed(2),
-      riskAmount: riskAmount.toFixed(2),
-      stopLossPrice: stopLossPrice.toFixed(2),
-      takeProfitPrice: takeProfitPrice.toFixed(2),
-      positionSize: positionSize.toFixed(4),
-      symbol: selectedSymbol,
-      outcome: 'open',
+        setTrades(data || []);
+      } catch (err) {
+        console.error('Failed to fetch trades:', err);
+        setSupabaseError('Failed to load trade journal. Please check Supabase configuration.');
+      }
     };
+    fetchTrades();
 
+    const subscription = supabase
+      .channel('trades-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trades' }, (payload) => {
+        setTrades((prev) => {
+          if (payload.eventType === 'INSERT') {
+            return [payload.new, ...prev];
+          } else if (payload.eventType === 'UPDATE') {
+            return prev.map((trade) => (trade.id === payload.new.id ? payload.new : trade));
+          } else if (payload.eventType === 'DELETE') {
+            return prev.filter((trade) => trade.id !== payload.old.id);
+          }
+          return prev;
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [user, router]);
+
+  const handleTradePlaced = async (trade: Omit<Trade, 'id' | 'time'>) => {
     try {
-      const apiKey = process.env.MEXC_API_KEY;
-      const apiSecret = process.env.MEXC_API_SECRET;
-      if (!apiKey || !apiSecret) {
-        throw new Error('MEXC API credentials not configured');
+      const { data, error } = await supabase
+        .from('trades')
+        .insert([{ ...trade, time: new Date().toISOString() }])
+        .select();
+      if (error) {
+        throw new Error(`Supabase error: ${error.message}`);
       }
-
-      const timestamp = Date.now();
-      const queryString = `symbol=${selectedSymbol}&side=${tradeAction.toUpperCase()}&type=${orderType.toUpperCase()}&quantity=${amountInput}${orderType === 'limit' ? `&price=${price}` : ''}&recvWindow=5000&timestamp=${timestamp}`;
-      const signature = crypto
-        .createHmac('sha256', apiSecret)
-        .update(queryString)
-        .digest('hex');
-
-      const response = await fetch(`https://api.mexc.com/api/v3/order?${queryString}&signature=${signature}`, {
-        method: 'POST',
-        headers: {
-          'X-MEXC-APIKEY': apiKey,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const result = await response.json();
-      if (result.code !== 200) {
-        throw new Error(result.msg || 'Failed to place order');
-      }
-
-      setTradeJournal((prev) => [{ ...tradeDetails, status: 'Executed', orderId: result.orderId }, ...prev]);
+      setTrades((prev) => [data[0], ...prev]);
     } catch (err) {
-      console.error('MEXC trade failed:', err);
-      setTradeJournal((prev) => [{ ...tradeDetails, status: 'Failed' }, ...prev]);
+      console.error('Failed to log trade:', err);
+      setSupabaseError('Failed to log trade to Supabase.');
     }
-  }, [tradeAction, orderType, priceInput, amountInput, totalCost, capital, riskAmount, stopLossPrice, takeProfitPrice, positionSize, selectedSymbol, currentPrice]);
-
-  const buyButtonBg = 'bg-green-500 hover:bg-green-600';
-  const sellButtonBg = 'bg-red-500 hover:bg-red-600';
-
-  if (isAuthLoading) {
-    return (
-      <div className="min-h-[calc(100vh-150px)] flex items-center justify-center text-gray-900 dark:text-gray-100">
-        <p className="text-xl">Authenticating...</p>
-      </div>
-    );
-  }
-
-  if (!session) {
-    return (
-      <div className="min-h-[calc(100vh-150px)] flex items-center justify-center text-gray-900 dark:text-gray-100">
-        <p className="text-xl">Please sign in to access trading features.</p>
-      </div>
-    );
-  }
+  };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 flex flex-col items-center">
-      <h1 className="text-3xl sm:text-4xl font-bold mb-6 text-center text-gray-900 dark:text-gray-100">Crypster Trading</h1>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full max-w-7xl min-h-[24rem]">
-        <div className="lg:col-span-2">
+    <div className="container mx-auto p-4">
+      {authError && (
+        <div className="bg-red-100 dark:bg-red-900 p-3 rounded-lg mb-4 text-sm text-red-700 dark:text-red-300">
+          {authError}
+        </div>
+      )}
+      {supabaseError && (
+        <div className="bg-red-100 dark:bg-red-900 p-3 rounded-lg mb-4 text-sm text-red-700 dark:text-red-300">
+          {supabaseError}
+        </div>
+      )}
+      {user ? (
+        <>
+          <h1 className="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">Crypster Trading Dashboard</h1>
           <ChartContainer
-            theme={theme}
+            theme="dark"
             initialSymbol={selectedSymbol}
             setCurrentPrice={setCurrentPrice}
             onSymbolChange={setSelectedSymbol}
-            onSignalChange={setSignal}
+            onSignalChange={(signal) => console.log('Signal:', signal)}
           />
-        </div>
-        <div>
-          <MemoizedOrderPanel
-            theme={theme}
-            orderType={orderType}
-            setOrderType={setOrderType}
-            tradeAction={tradeAction}
-            setTradeAction={setTradeAction}
-            priceInput={priceInput}
-            setPriceInput={setPriceInput}
-            amountInput={amountInput}
-            setAmountInput={setAmountInput}
-            totalCost={totalCost}
-            setTotalCost={setTotalCost}
-            handlePlaceTrade={handlePlaceTrade}
+          <OrderPanel
+            symbol={selectedSymbol}
             currentPrice={currentPrice}
-            buyButtonBg={buyButtonBg}
-            sellButtonBg={sellButtonBg}
+            onTradePlaced={handleTradePlaced}
           />
-        </div>
-        <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[24rem]">
-          <MemoizedRiskManagement
-            theme={theme}
-            capital={capital}
-            setCapital={setCapital}
-            riskPerTradePct={riskPerTradePct}
-            setRiskPerTradePct={setRiskPerTradePct}
-            stopLossPct={stopLossPct}
-            setStopLossPct={setStopLossPct}
-            takeProfitPct={takeProfitPct}
-            setTakeProfitPct={setTakeProfitPct}
-            riskAmount={riskAmount}
-            stopLossPrice={stopLossPrice}
-            takeProfitPrice={takeProfitPrice}
-            positionSize={positionSize}
-          />
-          <MemoizedTradingJournal theme={theme} tradeJournal={tradeJournal} />
-        </div>
-      </div>
+          <TradingJournal trades={trades} />
+        </>
+      ) : (
+        <p className="text-sm text-gray-500 dark:text-gray-400">Redirecting to login...</p>
+      )}
     </div>
   );
 };
