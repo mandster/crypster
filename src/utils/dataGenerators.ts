@@ -9,7 +9,58 @@ export interface CandlestickData {
     close: number;
     volume: number;
   }
-  
+
+
+// ✅ Add this:
+export function calculateRSI(closes: number[], period = 14): number[] {
+  const rsi: number[] = [];
+  let gains = 0;
+  let losses = 0;
+
+  for (let i = 1; i <= period; i++) {
+    const delta = closes[i] - closes[i - 1];
+    if (delta >= 0) gains += delta;
+    else losses -= delta;
+  }
+
+  gains /= period;
+  losses /= period;
+
+  rsi[period] = 100 - 100 / (1 + gains / losses);
+
+  for (let i = period + 1; i < closes.length; i++) {
+    const delta = closes[i] - closes[i - 1];
+    if (delta >= 0) {
+      gains = (gains * (period - 1) + delta) / period;
+      losses = (losses * (period - 1)) / period;
+    } else {
+      gains = (gains * (period - 1)) / period;
+      losses = (losses * (period - 1) - delta) / period;
+    }
+
+    rsi[i] = 100 - 100 / (1 + gains / losses);
+  }
+
+  return rsi;
+}
+
+export function calculateBollingerBands(closes: number[], period = 20) {
+  const bands: { upper: number; lower: number }[] = [];
+
+  for (let i = 0; i <= closes.length - period; i++) {
+    const slice = closes.slice(i, i + period);
+    const avg = slice.reduce((sum, val) => sum + val, 0) / period;
+    const stdDev = Math.sqrt(slice.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / period);
+
+    bands.push({
+      upper: avg + 2 * stdDev,
+      lower: avg - 2 * stdDev,
+    });
+  }
+
+  return bands;
+}
+
   /**
    * Generates dummy candlestick data for demonstration purposes.
    * @param count The number of candlestick data points to generate.

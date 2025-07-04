@@ -1,7 +1,6 @@
-// src/components/OrderPanel.tsx
 'use client';
 
-import React from 'react'; // Ensure React is imported
+import React, { useEffect } from 'react';
 
 interface OrderPanelProps {
   theme: string;
@@ -14,13 +13,15 @@ interface OrderPanelProps {
   amountInput: string;
   setAmountInput: (amount: string) => void;
   totalCost: number;
+  setTotalCost: (cost: number) => void;
   handlePlaceTrade: () => void;
   currentPrice: number;
   buyButtonBg: string;
   sellButtonBg: string;
 }
 
-const OrderPanel: React.FC<OrderPanelProps> = React.memo(({ // Wrapped in React.memo
+
+const OrderPanel: React.FC<OrderPanelProps> = React.memo(({
   theme,
   orderType,
   setOrderType,
@@ -31,12 +32,22 @@ const OrderPanel: React.FC<OrderPanelProps> = React.memo(({ // Wrapped in React.
   amountInput,
   setAmountInput,
   totalCost,
+  setTotalCost,
   handlePlaceTrade,
   currentPrice,
   buyButtonBg,
   sellButtonBg,
 }) => {
-  console.log('OrderPanel re-rendered'); // Diagnostic Log
+  // Update total cost whenever input values change
+  useEffect(() => {
+    const amount = parseFloat(amountInput);
+    if (!isNaN(amount) && currentPrice > 0) {
+      setTotalCost(amount * currentPrice);
+    } else {
+      setTotalCost(0);
+    }
+  }, [orderType, priceInput, amountInput, currentPrice, setTotalCost]);
+
   const panelClasses = `bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 flex flex-col`;
   const inputClasses = `w-full p-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500`;
 
@@ -122,12 +133,13 @@ const OrderPanel: React.FC<OrderPanelProps> = React.memo(({ // Wrapped in React.
           Total (USDT)
         </label>
         <input
-          type="text"
-          id="total"
-          value={totalCost.toFixed(2)}
-          readOnly
-          className={`w-full p-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 focus:outline-none`}
-        />
+        type="text"
+        id="total"
+        value={isNaN(totalCost) || totalCost === 0 ? '--' : totalCost.toFixed(2)}
+        readOnly
+        className={`w-full p-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 focus:outline-none`}
+      />
+      
       </div>
 
       <button

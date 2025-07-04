@@ -5,6 +5,9 @@ import React, { ReactNode } from 'react';
 import './globals.css';
 import { AuthAndThemeProvider, useAuthAndTheme } from '@/context/AuthAndThemeProvider';
 import Navbar from '@/components/ui/Navbar';
+import { Toaster } from 'react-hot-toast';
+
+<Toaster position="top-center" reverseOrder={false} />
 
 
 // RootLayout component defines the overall HTML structure

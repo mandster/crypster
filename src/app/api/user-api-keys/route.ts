@@ -2,6 +2,34 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/utils/supabaseClient';
 import { encrypt, decrypt } from '@/utils/encryption'; // <-- This line needs 'decrypt' to be properly exported
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+
+export async function GET(request: Request) {
+  const supabase = createServerComponentClient({ cookies });
+
+  try {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error || !user) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+
+    // Your logic to fetch user-specific API keys here
+    return new Response(JSON.stringify({ apiKey: 'example' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (err: any) {
+    console.error('Error fetching API keys:', err);
+    return new Response(JSON.stringify({ message: 'Server Error' }), {
+      status: 500,
+    });
+  }
+}
 
 /**
  * Handles POST requests to store encrypted user API keys in Supabase.
@@ -63,49 +91,3 @@ export async function POST(request: Request) {
   }
 }
 
-/**
- * Handles GET requests to retrieve encrypted user API keys from Supabase.
- * This route requires authentication.
- */
-export async function GET(request: Request) {
-  try {
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-    if (sessionError || !session) {
-      console.error('Authentication error:', sessionError?.message || 'No active session');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data, error } = await supabase
-      .from('user_api_keys')
-      .select('encrypted_api_key, api_key_iv, encrypted_secret_key, secret_key_iv, exchange')
-      .eq('user_id', session.user.id)
-      .limit(1); // Assuming one key per user per exchange for now
-
-    if (error) {
-      console.error('Supabase error retrieving API keys:', error);
-      return NextResponse.json({ error: 'Failed to retrieve API keys', details: error.message }, { status: 500 });
-    }
-
-    if (!data || data.length === 0) {
-      return NextResponse.json({ error: 'No API keys found for this user.' }, { status: 404 });
-    }
-
-    const decryptedApiKey = decrypt(data[0].encrypted_api_key, data[0].api_key_iv);
-    const decryptedSecretKey = decrypt(data[0].encrypted_secret_key, data[0].secret_key_iv);
-
-    return NextResponse.json({
-      exchange: data[0].exchange,
-      apiKey: decryptedApiKey,
-      secretKey: decryptedSecretKey,
-      message: "Decrypted keys sent. WARNING: Decrypting and sending secretKey to frontend is INSECURE for production apps."
-    }, { status: 200 });
-
-  } catch (error) {
-    console.error('Error in API key retrieval route:', error);
-    return NextResponse.json(
-      { error: 'Internal server error', details: (error as Error).message },
-      { status: 500 }
-    );
-  }
-}
