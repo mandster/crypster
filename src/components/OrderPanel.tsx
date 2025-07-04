@@ -1,7 +1,7 @@
 // src/components/OrderPanel.tsx
 'use client';
 
-import React from 'react';
+import React from 'react'; // Ensure React is imported
 
 interface OrderPanelProps {
   theme: string;
@@ -20,7 +20,7 @@ interface OrderPanelProps {
   sellButtonBg: string;
 }
 
-const OrderPanel: React.FC<OrderPanelProps> = ({
+const OrderPanel: React.FC<OrderPanelProps> = React.memo(({ // Wrapped in React.memo
   theme,
   orderType,
   setOrderType,
@@ -36,41 +36,55 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   buyButtonBg,
   sellButtonBg,
 }) => {
+  console.log('OrderPanel re-rendered'); // Diagnostic Log
   const panelClasses = `bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 flex flex-col`;
   const inputClasses = `w-full p-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500`;
-  const defaultButtonBg = 'bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700';
-  const inactiveButtonClasses = `bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 opacity-70`;
+
+  const defaultButtonActiveBg = 'bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700';
+  const defaultButtonActiveText = 'text-white';
+  const inactiveButtonBg = 'bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600';
+  const inactiveButtonText = 'text-gray-800 dark:text-gray-200';
 
   return (
     <div className={panelClasses}>
       <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Place Order</h2>
 
       <div className="flex mb-4 space-x-2">
-        {['buy', 'sell'].map((action) => (
-          <button
-            key={action}
-            onClick={() => setTradeAction(action as 'buy' | 'sell')}
-            className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all duration-200
-              ${tradeAction === action ? (action === 'buy' ? buyButtonBg : sellButtonBg) : inactiveButtonClasses}
-              ${tradeAction === action ? 'text-white' : ''}`}
-          >
-            {action.charAt(0).toUpperCase() + action.slice(1)}
-          </button>
-        ))}
+        <button
+          onClick={() => setTradeAction('buy')}
+          className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all duration-200
+            ${tradeAction === 'buy' ? buyButtonBg : inactiveButtonBg}
+            ${tradeAction === 'buy' ? defaultButtonActiveText : inactiveButtonText}`}
+        >
+          Buy
+        </button>
+        <button
+          onClick={() => setTradeAction('sell')}
+          className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all duration-200
+            ${tradeAction === 'sell' ? sellButtonBg : inactiveButtonBg}
+            ${tradeAction === 'sell' ? defaultButtonActiveText : inactiveButtonText}`}
+        >
+          Sell
+        </button>
       </div>
 
       <div className="flex mb-4 space-x-2">
-        {['market', 'limit'].map((type) => (
-          <button
-            key={type}
-            onClick={() => setOrderType(type as 'market' | 'limit')}
-            className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all duration-200
-              ${orderType === type ? defaultButtonBg : inactiveButtonClasses}
-              ${orderType === type ? 'text-white' : ''}`}
-          >
-            {type.charAt(0).toUpperCase() + type.slice(1)}
-          </button>
-        ))}
+        <button
+          onClick={() => setOrderType('market')}
+          className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all duration-200
+            ${orderType === 'market' ? defaultButtonActiveBg : inactiveButtonBg}
+            ${orderType === 'market' ? defaultButtonActiveText : inactiveButtonText}`}
+        >
+          Market
+        </button>
+        <button
+          onClick={() => setOrderType('limit')}
+          className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all duration-200
+            ${orderType === 'limit' ? defaultButtonActiveBg : inactiveButtonBg}
+            ${orderType === 'limit' ? defaultButtonActiveText : inactiveButtonText}`}
+        >
+          Limit
+        </button>
       </div>
 
       {orderType === 'limit' && (
@@ -112,7 +126,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           id="total"
           value={totalCost.toFixed(2)}
           readOnly
-          className={inputClasses}
+          className={`w-full p-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 focus:outline-none`}
         />
       </div>
 
@@ -125,6 +139,6 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       </button>
     </div>
   );
-};
+});
 
 export default OrderPanel;

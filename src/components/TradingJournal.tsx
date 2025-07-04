@@ -17,21 +17,26 @@ interface TradeEntry {
   stopLossPrice: string;
   takeProfitPrice: string;
   positionSize: string;
-  symbol: string; // Ensure symbol is part of TradeEntry if your data includes it
+  symbol: string;
 }
 
 interface TradingJournalProps {
-  theme: string; // Keep theme prop for specific table header background if needed
+  theme: string;
   tradeJournal: TradeEntry[];
-  // REMOVED: panelBg, borderColor props from here
 }
 
-const TradingJournal: React.FC<TradingJournalProps> = ({
-  theme, // We still use the theme prop for conditional styling if needed, otherwise removed.
+const TradingJournal: React.FC<TradingJournalProps> = React.memo(({
+  theme,
   tradeJournal,
-  // REMOVED: panelBg, borderColor from destructuring
 }) => {
-  // Apply panel background and border colors using dark: variants directly
+  // Detailed diagnostic log:
+  console.log('TradingJournal re-rendered. Props:', {
+    theme: theme,
+    tradeJournalLength: tradeJournal.length, // Log length to see if array content changes
+    // Add these if you suspect issues with object identity for the array itself:
+    // tradeJournalReference: tradeJournal,
+  });
+
   const panelClasses = `bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 flex flex-col`;
 
   return (
@@ -43,10 +48,9 @@ const TradingJournal: React.FC<TradingJournalProps> = ({
         ) : (
           <table className="min-w-full text-sm text-gray-900 dark:text-gray-100">
             <thead>
-              {/* Table header background still uses theme prop for specific color */}
               <tr className={`${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'} sticky top-0`}>
                 <th className="px-2 py-2 text-left font-semibold rounded-tl-lg">Time</th>
-                <th className="px-2 py-2 text-left font-semibold">Symbol</th> {/* Added Symbol column */}
+                <th className="px-2 py-2 text-left font-semibold">Symbol</th>
                 <th className="px-2 py-2 text-left font-semibold">Action</th>
                 <th className="px-2 py-2 text-left font-semibold">Type</th>
                 <th className="px-2 py-2 text-left font-semibold">Price</th>
@@ -72,6 +76,6 @@ const TradingJournal: React.FC<TradingJournalProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default TradingJournal;

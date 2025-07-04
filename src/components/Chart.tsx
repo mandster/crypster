@@ -1,7 +1,7 @@
 // src/components/Chart.tsx
 'use client';
 
-import React from 'react';
+import React from 'react'; // Ensure React is imported
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import CustomTooltip from '@/components/ui/CustomTooltip';
 import { CandlestickData } from '@/utils/dataGenerators';
@@ -10,19 +10,19 @@ interface ChartProps {
   theme: string;
   currentPrice: number;
   candlestickData: CandlestickData[];
-  selectedSymbol: string; // New prop for selected symbol
+  selectedSymbol: string;
 }
 
-const ChartComponent: React.FC<ChartProps> = ({
+const ChartComponent: React.FC<ChartProps> = React.memo(({ // Wrapped in React.memo
   theme,
   currentPrice,
   candlestickData,
-  selectedSymbol, // Destructure new prop
+  selectedSymbol,
 }) => {
+  console.log('ChartComponent re-rendered'); // Diagnostic Log
   return (
     <div className={`lg:col-span-2 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 flex flex-col`}>
       <div className="flex justify-between items-center mb-4">
-        {/* Use selectedSymbol in the chart title */}
         <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-gray-100">{selectedSymbol} Chart</h2>
         <span className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
           ${currentPrice.toFixed(2)}
@@ -52,6 +52,6 @@ const ChartComponent: React.FC<ChartProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default ChartComponent;

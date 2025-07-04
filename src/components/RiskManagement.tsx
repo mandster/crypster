@@ -1,10 +1,10 @@
 // src/components/RiskManagement.tsx
 'use client';
 
-import React from 'react';
+import React from 'react'; // Ensure React is imported
 
 interface RiskManagementProps {
-  theme: string; // Keep theme prop if needed for very specific overrides not handled by dark:
+  theme: string;
   capital: number;
   setCapital: (capital: number) => void;
   riskPerTradePct: number;
@@ -17,11 +17,10 @@ interface RiskManagementProps {
   stopLossPrice: number;
   takeProfitPrice: number;
   positionSize: number;
-  // REMOVED: panelBg, borderColor, inputBg, textColor props from here
 }
 
-const RiskManagement: React.FC<RiskManagementProps> = ({
-  theme, // We still use the theme prop for conditional styling if needed, otherwise removed.
+const RiskManagement: React.FC<RiskManagementProps> = React.memo(({ // Wrapped in React.memo
+  theme,
   capital,
   setCapital,
   riskPerTradePct,
@@ -34,9 +33,8 @@ const RiskManagement: React.FC<RiskManagementProps> = ({
   stopLossPrice,
   takeProfitPrice,
   positionSize,
-  // REMOVED: panelBg, borderColor, inputBg, textColor from destructuring
 }) => {
-  // Define common panel and input styling classes using dark: variants directly
+  console.log('RiskManagement re-rendered'); // Diagnostic Log
   const panelClasses = `bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-300 dark:border-gray-700 flex flex-col`;
   const inputClasses = `w-full p-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500`;
 
@@ -94,7 +92,6 @@ const RiskManagement: React.FC<RiskManagementProps> = ({
         </div>
       </div>
 
-      {/* Text colors are also now directly handled by dark: variant on the parent div or individual elements */}
       <div className="space-y-3 mt-auto text-gray-900 dark:text-gray-100">
         <p className="flex justify-between">
           <span className="font-medium">Risk Amount:</span>
@@ -115,6 +112,6 @@ const RiskManagement: React.FC<RiskManagementProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default RiskManagement;
